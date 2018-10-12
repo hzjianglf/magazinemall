@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+		"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="payDao" >
+
+	
+	<!-- 根据orderNo从paylog中取出对应记录 -->
+	<select id="selPaylog" resultType="hashmap" parameterType="String">
+		select * from paylog where orderNo=#{_parameter}
+	</select>
+	<!-- 修改状态信息 -->
+	<update id="updateStatus" parameterType="hashmap">
+		update paylog set status=1 where source=#{source} and sourceId=#{sourceId} and payer=#{userId}
+	</update>
+	<!-- 根据订单id修改支付状态 -->
+	<update id="updateOrderStatus" parameterType="hashmap">
+		update `order` set paystatus=1,orderstatus=2
+		<if test="payMethodId!=null and payMethodId!=''">
+			,paytype=#{payMethodId}
+		</if>
+		where id=#{id}
+	</update>
+	<!-- 修改优惠券状态 -->
+	<update id="updateCoupon" parameterType="hashmap">
+		UPDATE coupon_user cu,coupon c set cu.useState = 1,cu.orderNo=#{orderno},c.useCount=c.useCount+1 where cu.id = #{couponId}
+		and c.Id=cu.couponId and cu.userId=#{userId}
+	</update>
+	<!-- 修改代金券状态 -->
+	<update id="updateVoucher" parameterType="hashmap">
+		UPDATE voucher_user cu,voucher c set cu.useState = 1,cu.orderNo=#{orderno},c.useCount=c.useCount+1 where cu.id = #{voucherId}
+		and c.Id=cu.voucherId and cu.userId=#{userId}
+	</update>
+	<!-- 根据订单id查询订单子项id -->
+	<select id="selOrderitemId" parameterType="hashmap" resultType="hashmap">
+		SELECT id,producttype from orderitem where orderId=#{id} 
+	</select>
+	<!-- 修改订单状态和发货状态-->
+	<update id="updOrderItemStatus" parameterType="hashmap">
+			update `order` set orderstatus=#{orderstatus},deliverstatus=#{deliverstatus} where id=#{id}
+	</update>
+	
+	<!-- 查询订单类型 -->
+	<select id="selectOrderType" resultType="String" parameterType="hashmap">
+		select ordertype from `order` where id=#{sourceId}
+	</select>
+	<!-- 修改paylogtype -->
+	<update id="updatePaytype" parameterType="hashmap">
+		update paylog set payMethodId=#{payMethodId},payMethodName=#{methodName} where id=#{paylogId}
+	</update>
+	<!-- 查询支付方式是否启用 -->
+	<select id="selectpayMeth" resultType="hashmap" parameterType="int">
+		select * from paymethod where id=#{payMethodId}
+	</select>
+	<!-- 获取订单信息 -->
+	<select id="selectOrderMsg" resultType="hashmap" parameterType="hashmap">
+		select * from `order` where id=#{sourceId}
+	</select>
+	<!-- 查询paymethodID -->
+	<select id="selectPaymethodId" resultType="String" parameterType="int">
+		select payMethodId from paylog where id=#{paylogId}
+	</select>
+	<!-- 查询提问信息 -->
+	<select id="selQuesTionInfo" parameterType="int" resultType="hashmap">
+		select * from interlocution where id=#{sourceId}
+	</select>
+	<!-- 修改提问信息状态 -->
+	<update id="updQuestionStatus" parameterType="int">
+		update interlocution set payStatus=1,status=1 where id=#{sourceId}
+	</update>
+	<!-- 获取打赏信息 -->
+	<select id="selectRewardMsg" resultType="hashmap" parameterType="int">
+		select * from rewardlog where id=#{sourceId}
+	</select>
+	<!-- 添加专家的打赏人数 -->
+	<update id="updRewardNum" parameterType="hashmap">
+		update writer_extendmsg set rewardNum = rewardNum+1 where userId=#{beRewarding}
+	</update>
+	<!-- 更改打赏记录 -->
+	<update id="updateRewardStatus" parameterType="hashmap">
+		update rewardlog set state=1 where id=#{id}
+	</update>
+	<!-- 查找订单对应的订单项的desc(必须是纸质期刊) -->
+	<select id="selTotalDesc" parameterType="hashmap" resultType="hashmap">
+		select `desc`,count,productId,subType from orderitem ot
+		LEFT JOIN `order` o on ot.orderId=o.id
+		where o.id=#{id} and ot.producttype=2
+	</select>
+	<!-- 查询book表中对应刊物的上架数量 -->
+	<select id="selBookState" parameterType="String" resultType="hashmap">
+		select stock,IFNULL(state,1) state from book where id=#{productId}
+	</select>
+	<!-- 支付成功修改期刊库存 -->
+	<update id="updBookstock" parameterType="hashmap">
+		UPDATE book set stock = stock-#{count}, sales= sales+#{count} where period in
+		<foreach collection="ids" item="item" open="(" separator="," close=")">
+			#{item}
+		</foreach>
+	</update>
+	
+	<!-- 支付成功修改期刊库存 -->
+	<update id="updBookstockById" parameterType="hashmap">
+		UPDATE book set stock = stock-#{count}, sales= sales+#{count} where id=#{productId}
+	</update>
+	
+	<!-- 查询旁听记录 -->
+	<select id="selAuditInfo" parameterType="int" resultType="hashmap">
+		select * from audit where id=#{sourceId}
+	</select>
+	<!-- 修改旁听状态 -->
+	<update id="updAuditStatus" parameterType="int">
+		update audit set status=1 where id=#{sourceId}
+	</update>
+	<!-- 查询订单子项 -->
+	<select id="selOrdrItem" resultType="hashmap" parameterType="hashmap">
+		select ondemandId from orderitem where orderId=#{id} 
+	</select>
+	<!-- 修改课程订阅量 -->
+	<update id="updateOndemand" parameterType="hashmap">
+		update ondemand set studentNum=studentNum+1 where ondemandId=#{ondemandId}
+	</update>
+</mapper>

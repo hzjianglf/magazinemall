@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="questionDao">
+	<!-- 添加提问 -->
+	<insert id="addQuestions" parameterType="hashmap" useGeneratedKeys="true" keyProperty="questionId">
+		insert into interlocution (content,questioner,inputDate,type,isAnonymity,
+		<if test="type!=null and type!='' and type==2">
+			lecturer
+		</if>
+		<if test="type!=null and type!='' and type==1">
+			lecturer,ondemandId
+		</if>
+		,money) values
+		(#{content},#{questioner},now(),#{type},#{isAnonymity}
+		<if test="type!=null and type!='' and type==2"> -- 专家
+			,#{teacherId}
+		</if>
+		<if test="type!=null and type!='' and type==1"> -- 课程
+			,#{teacherId},#{ondemandId}
+		</if>
+		,#{money})
+		
+	</insert>
+	<!-- 添加paylog信息记录 -->
+	<insert id="addPayLogInfo" parameterType="hashmap" useGeneratedKeys="true" keyProperty="payLogId">
+		insert into paylog (payer,source,sourceId,payTime,price,orderNo) values 
+		(#{questioner},#{source},#{questionId},now(),#{money},#{orderNo})
+	</insert>
+	<!-- 添加旁听记录 -->
+	<insert id="addListenInfo" parameterType="hashmap" useGeneratedKeys="true" keyProperty="auditId">
+		insert into audit (interlocutionId,userId,inputTime,price,status,auditType) values
+		(#{questionId},#{questioner},now(),#{money},0,#{auditType})
+	</insert>
+	<!-- 查询提问内容 -->
+	<select id="selQuestionInfo" parameterType="Integer" resultType="hashmap">
+		select content from interlocution where id=#{questionId}
+	</select>
+	<!-- 回答提问 -->
+	<update id="answerQuestion" parameterType="hashmap">
+		update interlocution set answertype=#{answertype},answerState=#{answerState},respondent=#{userId}
+		<if test="answer!=null and answer!=''">
+			,answer=#{answer}
+		</if>
+		<if test="musicurl!=null and musicurl!=''">
+			,musicurl=#{musicurl}
+		</if>
+		where id=#{id}
+	</update>
+	<!-- 查询问答详情 -->
+	<select id="findByQuestion" resultType="hashmap" parameterType="hashmap">
+		select * from interlocution where id=#{id}
+	</select>
+</mapper>

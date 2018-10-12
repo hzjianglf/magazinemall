@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="phooneLoginDao">
+	
+
+	<!-- 查询该手机号是否已经注册 -->
+	<select id="selectUserIsExistence" resultType="hashmap" parameterType="hashmap">
+		select * from userinfo where telenumber=#{phone}
+	</select>
+	<!-- 注册 -->
+	<insert id="UserRegister" parameterType="hashmap">
+		<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="userId">    
+          SELECT LAST_INSERT_ID() AS userId 
+	    </selectKey>
+		insert into userinfo (userName,userPwd,telenumber
+		<if test="address!=null and address!=''">
+			,address
+		</if>
+		<if test="sex!=null and sex!=''">
+			,sex
+		</if>
+			,registrationDate
+		<if test="userUrl!=null and userUrl!=''">
+			,userUrl
+		</if>
+		<if test="openId!=null and openId!=''">
+			,openId
+		</if>
+		<if test="nickName!=null and nickName!=''">
+			,nickName
+		</if>
+		)
+		values (#{phone},#{pwd},#{phone}
+		<if test="address!=null and address!=''">
+		,#{address}
+		</if>
+		<if test="sex!=null and sex!=''">
+		,#{sex}
+		</if>
+		,now()
+		<if test="userUrl!=null and userUrl!=''">
+			,#{userUrl}
+		</if>
+		<if test="openId!=null and openId!=''">
+		,#{openId}
+		</if>
+		<if test="nickName!=null and nickName!=''">
+		,#{nickName}
+		</if>
+		)
+	</insert>
+	<!-- 初始化账户表 -->
+	<insert id="insertAccount" parameterType="hashmap">
+		insert into useraccount (customerId) values(#{userId})
+	</insert>
+</mapper>

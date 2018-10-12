@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="settingApiDao">
+
+
+
+	<!-- 支付方式列表 -->
+	<select id="getPayMethods" resultType="hashmap">
+		select id,methodName,picUrl,rate,isDefault,payType from paymethod 
+		where isfreeze=1 and (platformType=1
+		<if test="platformType!=null and platformType!=''">
+			or platformType=#{platformType}
+		</if>)
+		ORDER BY isDefault DESC
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 支付方式count -->
+	<select id="getPaymethodsCount" resultType="long" parameterType="hashmap">
+		select count(id) from paymethod 
+		where isfreeze=1 and (platformType=1
+		<if test="platformType!=null and platformType!=''">
+			and platformType=#{platformType}
+		</if>)
+	</select>
+	<!-- 获取专栏设置信息 -->
+	<select id="getSpecialSetMsg" resultType="hashmap" parameterType="hashmap">
+		SELECT u.realname,REPLACE(we.cardNo, SUBSTR(we.cardNo,7,10), '********') cardNo,
+		REPLACE(we.identitynumber, SUBSTR(we.identitynumber,7,9), '*********') identitynumber,we.questionPrice from userinfo u
+		LEFT JOIN writer_extendmsg we on we.userId=u.userId
+		where u.userId=#{userId}
+	</select>
+	<!-- 保存专栏设置信息 -->
+	<update id="addSpecialSetMsg" parameterType="hashmap">
+		update userinfo set identitynumber=#{identitynumber},realname=#{realname} where userId=#{userId}
+	</update>
+	<update id="addUserExtend" parameterType="hashmap">
+		update writer_extendmsg set identitynumber=#{identitynumber},questionPrice=#{questionPrice},cardNo=#{cardNo} where userId=#{userId}
+	</update>
+	<update id="setPhoneId" parameterType="hashmap">
+		update userinfo set phoneId = #{phoneId} where userId = #{userId}
+	</update>
+</mapper>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="paymethodDao">
+	
+	
+	<!-- 查询记录数量 -->
+	<select id="selPaymentCount" resultType="long" parameterType="hashmap">
+		select count(id) from paymethod
+		where 1=1
+	</select>
+	<!-- 查询列表 -->
+	<select id="selPaymentList" resultType="hashmap" parameterType="hashmap">
+		select * from paymethod
+		where 1=1
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 支付管理状态设置 -->
+	<update id="updateDefault" parameterType="hashmap">
+		update paymethod set id=#{id}
+		<if test="isDefault!=null and isDefault!=''">
+			,isDefault=#{isDefault}
+		</if>
+		<if test="isfreeze!=null and isfreeze!=''">
+			,isfreeze=#{isfreeze}
+		</if>
+		where id=#{id}
+	</update>
+	<!-- 删除 -->
+	<delete id="deletePayment" parameterType="hashmap">
+		delete from paymethod where id=#{id}
+	</delete>
+	<!-- 根据id查询支付方式 -->
+	<select id="findByIdPayment" resultType="hashmap" parameterType="hashmap">
+		select * from paymethod where id=#{id}
+	</select>
+	<!-- 添加支付方式 -->
+	<insert id="addPayment" parameterType="hashmap">
+		insert into paymethod (methodName,accountId,encryptionKey,methodIntro,picUrl,payType,rate,platformType,isDefault,isfreeze)
+		values (#{methodName},#{accountId},#{encryptionKey},#{methodIntro},#{picUrl},#{payType},#{rate},#{platformType},#{isDefault},#{isfreeze})
+	</insert>
+	<!-- 修改支付方式 -->
+	<update id="UpPayment" parameterType="hashmap">
+		update paymethod set methodName=#{methodName},accountId=#{accountId},encryptionKey=#{encryptionKey},methodIntro=#{methodIntro},picUrl=#{picUrl},
+		payType=#{payType},rate=#{rate},platformType=#{platformType},isDefault=#{isDefault},isfreeze=#{isfreeze}
+		where id=#{id}
+	</update>
+	
+	
+</mapper>

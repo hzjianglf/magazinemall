@@ -1,0 +1,401 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.dao.bookDao">
+	<sql id="wh">
+		<if test="type!=null and type!=''">
+			and type=#{type}
+		</if>
+		<if test="name !=null and name !=''">
+			and b.name like "%"#{name}"%"
+		</if>
+		<if test="state!=null and state!=''">
+			and b.state=#{state}
+		</if>
+		<if test="founder!=null and founder!=''">
+			and b.founder like "%"#{founder}"%"
+		</if>
+		<if test="magazine!=null and magazine!=''">
+			and pe.magazine like "%"#{magazine}"%"
+		</if>
+		<if test="periodId !=null and periodId !=''">
+			and b.periodicalId=#{periodId}
+		</if>
+		<if test="year !=null and year !=''">
+			and b.year=#{year}
+		</if>
+	</sql>
+	<sql id="ebook">
+		<if test="name!=null and name!=''">
+			and pl.`name` like "%"#{name}"%" OR p.describes like "%"#{name}"%"
+		</if>
+		<if test="year!=null and year!=''">
+			and p.year=#{year}
+		</if>
+		<if test="magazine!=null and magazine!=''">
+			and pl.magazine like "%"#{magazine}"%"
+		</if>
+		<if test="time!=null and time!=''">
+			and p.inputDate like "%"#{time}"%"
+		</if>
+		<if test="status!=null and status!=''">
+			and p.status = #{status}
+		</if>
+	</sql>
+	<!-- 查询图书期刊总条数 -->
+	<select id="getbookCount" parameterType="hashmap" resultType="long">
+		select count(*) from book b
+		LEFT JOIN publishingplan p on p.id=b.period
+		JOIN periodical pe on pe.id=p.periodicalId
+		where 1=1<include refid="wh"></include>
+	</select>
+	<!-- 查询图书期刊列表 -->
+	<select id="getbookList" parameterType="hashmap" resultType="hashmap">
+		select date_format(b.inputDate, '%Y-%m-%d %H:%i') date,pe.magazine,b.id,b.name,b.sales,b.stock,b.paperPrice,
+		b.ebookPrice,b.state,b.founder,b.year from book b 
+		LEFT JOIN publishingplan p on p.id=b.period
+		JOIN periodical pe on pe.id=p.periodicalId
+		where 1=1<include refid="wh"></include>
+		ORDER BY id desc
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 获取期刊年份 -->
+	<select id="getYears" resultType="string">
+		select DISTINCT(`year`) from publishingplan ORDER BY  `year` DESC
+	</select>
+	<!--获取期刊的类型 -->
+	<select id="selectPeriodicalList" resultType="hashMap">
+		SELECT id,`name` FROM periodical  WHERE state=1 ORDER BY id DESC
+	</select>
+	<!-- 修改图书状态 -->
+	<update id="upPubByIdToStatus" parameterType="hashmap">
+		update publishingplan set status=#{status}  where id=#{id};
+	</update>
+	<delete id="delStatusByID">
+		DELETE FROM documentfinal WHERE DocID = #{id};
+	</delete>
+	<!-- 查询电子图书期刊总条数 -->
+	<select id="getebookCount" parameterType="hashmap" resultType="long">
+		select count(DISTINCT p.id) from publishingplan p 
+		join documentfinal d on p.id=d.IssueOfPublication
+		join periodical pl on p.periodicalId=pl.id
+		where 1=1<include refid="ebook"></include>
+	</select>
+	<!-- 查询电子图书期刊列表 -->
+	<select id="getebookList" parameterType="hashmap" resultType="hashmap">
+		select  DISTINCT p.id,CONCAT(pl.`name`,'-',p.describes) name,pl.magazine,p.status,
+			DATE_FORMAT(p.inputDate,'%Y-%m-%d %H:%i') time , p.year year ,pl.id period
+		from publishingplan p 
+		join documentfinal d on p.id=d.IssueOfPublication
+		join periodical pl on p.periodicalId=pl.id
+		where 1=1<include refid="ebook"></include>
+		ORDER BY p.id desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<select id="selEbookByPubId" parameterType="hashmap" resultType="hashmap">
+		 SELECT d.DocID,c.CategoryName,cs.ColumnName,d.Title,d.IssueOfPublication,d.OrderNo,d.status,DATE_FORMAT(d.inputtime,'%Y-%m-%d %H:%i') time FROM `documentfinal` d
+		LEFT join category c on d.CatID = c.CategoryID
+		LEFT JOIN `columns` cs on d.ColumnID = cs.ColumnID
+		 where d.IssueOfPublication = #{id}
+		 <if test="Title!=null and Title!=''">
+		 	and d.Title like "%"#{Title}"%"
+		 </if>
+		 <if test="CategoryName!=null and CategoryName!=''">
+		 	and c.CategoryName like "%"#{CategoryName}"%"
+		 </if>
+		 <if test="time!=null and time!=''">
+		 	and d.inputtime like "%"#{time}"%"
+		 </if>
+		 <if test="status!=null and status!=''">
+		 	and d.status = #{status}
+		 </if>
+		 order by d.OrderNo 
+	</select>
+	<update id="updStatusByID" parameterType="hashmap">
+		update documentfinal set status = #{status} where DocID = #{id};
+	</update>
+	<select id="selDocById" parameterType="int" resultType="hashmap">
+		SELECT d.*,c.CategoryName,cs.ColumnName Columname FROM `documentfinal` d
+		LEFT JOIN category c on d.CatID=c.CategoryID
+		LEFT JOIN `columns` cs on d.ColumnID = cs.ColumnID where d.DocID=#{DocId}
+	</select>
+	<!-- 查询所有的板块信息 -->
+	<select id="selCategoryAllName" resultType="hashmap" parameterType="hashmap">
+		select CategoryID,CategoryName,PublicationID from category where PublicationID = #{PublicationID} ;
+	</select>
+	<!-- 查询所有的栏目信息 -->
+	<select id="selColumnsAllName" resultType="hashmap"  parameterType="hashmap">
+		select ColumnID , ColumnName from `columns` where  CategoryID= #{CatID};
+	</select>
+	<update id="updDoc" parameterType="hashmap">
+		
+		UPDATE documentfinal set MainText = #{describes},Author=#{Author},IssueOfPublication=#{IssueOfPublication},OrderNo=#{orderNo},inputtime=now(),Title=#{Title},status=#{status},CatID=#{CatID},ColumnID=#{ColumnID}
+		 where DocID = #{id}
+	</update>
+	<!-- 添加图书期刊 -->
+	<insert id="adds" parameterType="hashmap" useGeneratedKeys="true" keyProperty="id">
+		<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="id">    
+          SELECT LAST_INSERT_ID() AS ID 
+	    </selectKey>
+		insert into book (period,name,inputDate,founder,stock,paperPrice,ebookPrice,describes,originalPrice,picture,type,
+		label,isTop,sumType,`desc`,year,sortNo,isSalePaper,isSaleEbook,periodicalId,isShowAsProduct
+		<if test="publishTime!=null and publishTime!=''">
+			,publishTime
+		</if>
+		<if test="publishType!=null and publishType!=''">
+			,publishType
+		</if>
+		<if test="postageType!=null and postageType!=''">
+			,postageType
+		</if>
+		<if test="postage!=null and postage!=''">
+			,postage
+		</if>
+		<if test="postageTempId!=null and postageTempId!=''">
+			,postageTempId
+		</if>
+		
+		) values
+		(#{period},#{name},now(),#{founder},#{stock},#{paperPrice},#{ebookPrice},#{describes},#{originalPrice},#{picture},#{protype},
+		#{label},#{isTop},#{sumType},#{desc},#{year},#{sortNo},#{isSalePaper},#{isSaleEbook},#{periodicalId},#{isShowAsProduct}
+		<if test="publishTime!=null and publishTime!=''">
+			,#{publishTime}
+		</if>
+		<if test="publishType!=null and publishType!=''">
+			,#{publishType}
+		</if>
+		<if test="postageType!=null and postageType!=''">
+			,#{postageType}
+		</if>
+		<if test="postage!=null and postage!=''">
+			,#{postage}
+		</if>
+		<if test="postageTempId!=null and postageTempId!=''">
+			,#{postageTempId}
+		</if>
+		)
+	</insert>
+	<!-- 通过id查询图书期刊内容 -->
+	<select id="selOne" parameterType="String" resultType="hashmap">
+		select pe.`name` perName,b.id,b.name,b.sales,b.stock,b.paperPrice,b.ebookPrice,pe.id preId,b.period,b.label,b.isTop
+		,b.originalPrice,b.picture,b.describes,b.postageType,b.postage,b.sumType,b.`desc`,b.year,b.sortNo,b.isSalePaper,b.isSaleEbook,
+		b.periodicalId,b.isShowAsProduct,b.publishType,b.publishTime,b.postageTempId
+		FROM book b 
+		LEFT JOIN publishingplan p on p.id=b.period
+		LEFT JOIN periodical pe on pe.id=p.periodicalId
+		where b.id=#{_parameter}
+	</select>
+	
+	<!-- 判断是否存在对应期次的期刊 -->
+	<select id="selectBook" parameterType="hashMap" resultType="long">
+		SELECT COUNT(*)
+		FROM book
+		WHERE sumType=#{sumType} AND periodicalId=#{periodicalId} AND `year`=#{year} AND `desc`=#{desc}
+		<if test="id !=null and id !=''">
+			AND id	<![CDATA[ <> #{id} ]]>
+		</if>
+	</select>
+	
+	<!-- 获取运费模板列表 -->
+	<select id="selectLogisticsTemplateList" parameterType="hashMap" resultType="hashMap">
+		SELECT id,templateName
+		FROM logisticstemplate 
+		WHERE isDel=0
+	</select>
+	
+	<!-- 修改图书期刊 -->
+	<update id="ups" parameterType="hashmap">
+		UPDATE book
+		<set>
+			<if test="period !=null and period !=''"> period=#{period},</if>
+			<if test="name !=null and name !=''"> name=#{name},</if>
+			<if test="paperPrice !=null and paperPrice !=''"> paperPrice=#{paperPrice},</if>
+			<if test="ebookPrice !=null and ebookPrice !=''"> ebookPrice=#{ebookPrice},</if>
+			<if test="isTop !=null and isTop !=''"> isTop=#{isTop},</if>
+			<if test="stock !=null and stock !=''"> stock=#{stock},</if>
+			<if test="describes !=null and describes !=''"> describes=#{describes},</if>
+			<if test="originalPrice !=null and originalPrice !=''"> originalPrice=#{originalPrice},</if>
+			<if test="picture !=null and picture !=''"> picture=#{picture},</if>
+			<if test="label !=null and label !=''"> label=#{label},</if>
+			<if test="sumType !=null and sumType !=''"> sumType=#{sumType},</if>
+			<if test="desc !=null and desc !=''"> `desc`=#{desc},</if>
+			<if test="year !=null and year !=''"> year=#{year},</if>
+			<if test="publishType !=null and publishType !=''"> publishType=#{publishType},</if>
+			<if test="publishTime !=null and publishTime !=''"> publishTime=#{publishTime},</if>
+			<if test="postageType !=null and postageType !=''"> postageType=#{postageType},</if>
+			<if test="postage !=null and postage !=''"> postage=#{postage},</if>
+			<if test="postageTempId !=null and postageTempId !=''">postageTempId=#{postageTempId},</if>
+			<if test="sortNo !=null and sortNo !=''"> sortNo=#{sortNo},</if>
+			<if test="isSalePaper !=null and isSalePaper !=''"> isSalePaper=#{isSalePaper},</if>
+			<if test="isSaleEbook !=null and isSaleEbook !=''"> isSaleEbook=#{isSaleEbook},</if>
+			<if test="periodicalId !=null and periodicalId !=''"> periodicalId=#{periodicalId},</if>
+			<if test="isShowAsProduct !=null and isShowAsProduct !=''"> isShowAsProduct=#{isShowAsProduct}</if>
+		</set>
+		where id=#{id}
+	</update>
+	<!-- 删除图书期刊 -->
+	<delete id="deleteBook" parameterType="String">
+		delete from book where id=#{_parameter}
+	</delete>
+	<!-- 修改图书期刊状态 -->
+	<update id="upState" parameterType="hashmap">
+		update book set state=#{state}
+		where id=#{id}
+	</update>
+	
+	<!-- 查询年份 -->
+	<select id="selYear" parameterType="hashmap" resultType="hashmap">
+		select year from book where periodicalId=1 GROUP BY `year`
+	</select>
+	
+	<!-- 查询对应刊物、年份的期次Id列表 -->
+	<select id="getPeriodIdList" parameterType="hashMap" resultType="int">
+		SELECT DISTINCT pp.id
+		FROM publishingplan pp JOIN periodical pd ON pp.periodicalId=pd.id
+		WHERE pd.id=#{perId} AND pp.`year`=#{year}
+		ORDER BY pp.id
+	</select>
+	
+	<!-- 查询期次 -->
+	<select id="selPeriod" parameterType="hashmap" resultType="hashmap">
+		SELECT p.id,p.year,p.describes from publishingplan p
+		where p.periodicalId=#{preId} and p.state=1
+		AND NOT EXISTS(
+			SELECT 1 FROM book b WHERE b.period=p.id
+			<if test="period!=null and period!=''">
+			AND b.period!= #{period}
+		</if>
+		)
+		<if test="year!=null and year!=''">
+			AND p.year=#{year}
+		</if>
+	</select>
+	<!-- 查询期次 -->
+	<select id="selectPeriodlist" resultType="hashmap" parameterType="hashmap">
+		SELECT p.id,p.year,p.describes from publishingplan p
+		where p.periodicalId=#{perId} and p.state=1
+		<if test="type!=null and type!='' ">
+			AND NOT EXISTS(
+				SELECT 1 FROM book b WHERE b.period=p.id
+			)
+		</if>
+		<if test="year!=null and year!=''">
+			AND p.year=#{year}
+		</if>
+	</select>
+	
+	<!-- 查询期刊列表-->
+	<select id="selPerList" resultType="hashmap">
+		SELECT id,name from periodical where state=1
+	</select>
+	
+	<!-- 查询指定刊物对应的年份 -->
+	<select id="selectYearForPerId" parameterType="hashMap" resultType="String">
+	 	SELECT DISTINCT pp.`year`
+		FROM publishingplan pp JOIN periodical pd ON pp.periodicalId=pd.id
+		WHERE 1=1
+		 <if test="perId!=null and perId!=''">
+		 	AND pd.id=#{perId}
+		 </if>
+		 <if test="period!=null and period!=''">
+		 	AND pp.id=#{period}
+		 </if>
+		ORDER BY pp.`year` DESC
+	</select>
+	
+	<!-- 修改商品图片-->
+	<update id="upPictureUrl" parameterType="hashmap">
+		update book set pictureUrl=#{pictureUrl},state=#{state} where id=#{id}
+	</update>
+	
+	<select id="selPictureUrl" parameterType="String" resultType="String">
+		select pictureUrl from book where id=#{id}
+	</select>
+	<!-- 查询书刊杂志分类 -->
+	<select id="selectMagazineType" resultType="hashmap" parameterType="int">
+		select * from assortment where parentId=#{id} and type=2 and status = 1  ORDER BY orderIndex ASC
+	</select>
+	<!-- 查询省 -->
+	<select id="selectProvince" resultType="hashmap" parameterType="hashmap">
+		SELECT * FROM provinces where codeid <![CDATA[>]]> 10 AND codeid <![CDATA[<]]> 100
+	</select>
+	<!-- 查询市 -->
+	<select id="selectCity" resultType="hashmap" parameterType="hashmap">
+		SELECT * FROM provinces where parentid=#{codeid}
+	</select>
+	<!-- 查询所有定时发布的期刊 -->
+	<select id="selectTiming" resultType="hashmap">
+		select id,date_format(publishTime,'%Y-%m-%d %T') publishTime from book where publishType=1
+	</select>
+	<!-- 修改定时发布状态 -->
+	<update id="updatePublish" parameterType="hashmap">
+		update book set state=0 where id=#{_parameter}
+	</update>
+	<!-- 查询当前期次下是否有电子书 -->
+	<select id="selectIsEbook" resultType="hashmap" parameterType="hashmap">
+		SELECT * FROM documentfinal d
+		WHERE d.IssueOfPublication=#{issue} and d.`status`=1 
+	</select>
+	
+	<!-- 查询期次列表下有无电子书 -->
+	<select id="selectHaveEbookForSum" resultType="long" parameterType="hashmap">
+		SELECT count(1) FROM documentfinal d
+		WHERE d.`status`=1 and d.IssueOfPublication IN
+		<foreach collection="list" open="(" separator="," close=")" item="item">
+			#{item}
+		</foreach>
+	</select>
+	
+	<select id="selectTemplateType" resultType="hashmap" parameterType="hashmap">
+		SELECT
+			b.id ,b.postageTempId,b.postageType,sum(a.count) as count 
+		FROM
+			shopcart a
+		JOIN book b ON a.productid = b.id
+		where b.postageType=1
+		and a.id IN
+		<foreach collection="shopCartIdList" open="(" separator="," close=")" item="shopCartId">
+			#{shopCartId}
+		</foreach>
+		GROUP BY postageTempId
+	</select>
+	
+	<select id="selectTemplateId" resultType="hashmap" parameterType="hashmap">
+		SELECT
+			id,
+			postageTempId,
+			postageType,
+			count(postageTempId) AS count
+		FROM
+			book
+		where postageType=1
+		and id IN
+		<foreach collection="bookIdList" open="(" separator="," close=")" item="bookId">
+			#{bookId}
+		</foreach>
+		GROUP BY postageTempId
+	</select>
+	
+	
+	<!-- 模版类型-0,计算运费 -->
+	<select id="selectpostageTypeForZero" resultType="hashmap" parameterType="hashmap">
+		SELECT
+			sum(postage) postage
+		FROM
+			book
+		where (postageType=0 or postageType IS NULL) and id IN
+		<foreach collection="bookIdList" open="(" separator="," close=")" item="bookIdList">
+			#{bookIdList}
+		</foreach>
+	</select>
+	
+	
+	<!-- 查询book表所有期刊-->
+	<select id="selectAllBookList" resultType="hashmap" >
+		SELECT
+			id,year,name
+		FROM
+			book
+	</select>
+</mapper>

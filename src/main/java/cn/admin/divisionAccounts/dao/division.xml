@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="divisionDao">
+	
+	
+	
+	<sql id="sql_where">
+			and status!=2 and status!=0
+		<if test="ids!=null and ids!=''">
+			and id in
+			<foreach collection="id" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+	</sql>
+	<!-- 查询分账批次列表 -->
+	<select id="selectDivisionList" resultType="hashmap" parameterType="hashmap">
+		select * from billreckon_examine
+		where 1=1
+		<include refid="sql_where"></include>
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 查询分账count -->
+	<select id="selectDivisionCount" resultType="long" parameterType="hashmap">
+		select count(0) from billreckon_examine
+		where 1=1
+		<include refid="sql_where"/>
+	</select>
+	<!-- 分账计算作废 -->
+	<delete id="updateStatus" parameterType="hashmap">
+		DELETE a,b FROM billreckon_examine a 
+		INNER JOIN billreckon b ON a.id = b.batchId 
+		WHERE a.id=#{id}
+	</delete>
+	<!-- 提交分账记录 -->
+	<update id="handInDivisonlog" parameterType="hashmap">
+		update billreckon_examine set status=#{status},trialStatus=#{trialStatus},submitTime=now()
+		where id in
+		<foreach collection="ids" index="index" separator="," item="item" open="(" close=")">
+			#{item}
+		</foreach>
+	</update>
+	
+	<!-- 分账计算,计算专家课程销售金额、问答金额、打赏金额、应发金额、实发金额 -->
+	<select id="startCalculation" resultType="hashmap" parameterType="hashmap">
+		SELECT a.userId,a.realname,a.ondemandMoney,a.questionMoney,a.rewardMoney,(a.ondemandMoney+a.questionMoney+a.rewardMoney) AS shouldMoney 
+		FROM (
+			SELECT IFNULL(u.realname,u.nickName) realname,u.userId,
+			(
+				SELECT IFNULL(SUM(p.price*(o.rate/100)),0) FROM ondemand_teacher ot
+				LEFT JOIN ondemand o on o.ondemandId=ot.ondemandId
+				LEFT JOIN orderitem oe on oe.productid=ot.ondemandId  
+				LEFT JOIN paylog p on p.sourceId=oe.orderId
+				WHERE p.`status`=1 AND p.source=1 AND (oe.producttype=4 OR oe.producttype=8) and o.rate IS NOT NULL and
+				 ot.teacherId=u.userId AND DATE_FORMAT(p.payTime,'%Y-%m')=DATE_FORMAT(#{time},'%Y-%m')
+			) AS ondemandMoney,
+			(
+				SELECT IFNULL(SUM(i.money*(c.questionRate/100)),0) FROM interlocution i 
+				LEFT JOIN paylog pl on pl.sourceId=i.id
+				LEFT JOIN centssetup c on c.userId=i.lecturer
+				WHERE i.lecturer=u.userId AND i.type=2 AND i.payStatus=1 AND i.divideStatus=1
+				AND pl.`status`=1 AND pl.source=3 AND c.questionRate IS NOT NULL
+				AND DATE_FORMAT(pl.payTime,'%Y-%m')=DATE_FORMAT(#{time},'%Y-%m')
+			) AS questionMoney,
+			(
+				SELECT IFNULL(SUM(r.money*(ct.rewardRate/100)),0) FROM rewardlog r
+				LEFT JOIN paylog pll ON pll.sourceId=r.id
+				LEFT JOIN centssetup ct on ct.userId=r.beRewarding
+				WHERE r.beRewarding=u.userId AND r.state=1 AND r.`status`=1
+				AND pll.source=5 AND pll.`status`=1 AND ct.rewardRate IS NOT NULL
+				AND DATE_FORMAT(pll.payTime,'%Y-%m')=DATE_FORMAT(#{time},'%Y-%m')
+			) AS rewardMoney
+			FROM userinfo u
+			WHERE u.userType=2
+			GROUP BY u.userId
+		) AS a
+	</select>
+	<!-- 添加分成计算批次 -->
+	<insert id="addReckonBatch" parameterType="hashmap">
+		<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="batchId">    
+          SELECT LAST_INSERT_ID() AS id 
+	    </selectKey>
+		insert into billreckon_examine (name,userCount,totalOndemandMoney,totalQuestionMoney,totalRewardMoney,addUserId,inputer,addTime
+		<if test="totalSalesTax!=null and totalSalesTax!=''">,totalSalesTax</if>
+		<if test="totalPersonalTax!=null and totalPersonalTax!=''">,totalPersonalTax</if>
+		)
+		values(#{name},#{userCount},#{totalOndemandMoney},#{totalQuestionMoney},#{totalRewardMoney},#{addUserId},#{inputer},now()
+		<if test="totalSalesTax!=null and totalSalesTax!=''">,#{totalSalesTax}</if>
+		<if test="totalPersonalTax!=null and totalPersonalTax!=''">,#{totalPersonalTax}</if>
+		)
+	</insert>
+	<!-- 添加分成详细 -->
+	<insert id="insertBillreckon" parameterType="hashmap">
+		insert into billreckon (year,month,userId,ondemandMoney,questionMoney,rewardMoney,shouldMoney,addUserId,addTime,batchId
+		<if test="salesTax !=null and salesTax !=''">,salesTax</if>
+		<if test="personalTax !=null and personalTax !=''">,personalTax</if>
+		<if test="actualMoney !=null and actualMoney !=''">,actualMoney</if>
+		) 
+		values
+		<foreach collection="list" item="item" index="index" separator="," >  
+	       (#{item.year},#{item.month},#{item.userId},#{item.ondemandMoney},#{item.questionMoney},#{item.rewardMoney},#{item.shouldMoney},#{item.addUserId},now(),#{item.batchId}
+			<if test="salesTax !=null and salesTax !=''">,#{item.salesTax}</if>
+			<if test="personalTax !=null and personalTax !=''">,#{item.personalTax}</if>
+			<if test="actualMoney !=null and actualMoney !=''">,#{item.actualMoney}</if>
+			)
+	    </foreach>  
+		
+	</insert>
+	
+	<sql id="sql_detail">
+		and b.batchId=#{batchId}
+		<if test="realname!=null and realname!=''">
+			and (u.userId=#{realname} or u.realname like "%"#{realname}"%" or u.nickName like "%"#{realname}"%")
+		</if>
+	</sql>
+	<!-- 分成详细列表查询 -->
+	<select id="selectDivisionDetailList" resultType="hashmap" parameterType="hashmap">
+		select ifnull(u.realname,u.nickName) realname,b.* from billreckon b
+		left join userinfo u on u.userId=b.userId
+		where 1=1
+		<include refid="sql_detail"></include>
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 分成详情列表count查询 -->
+	<select id="selectDivisionDetailCount" resultType="long" parameterType="hashmap">
+		select count(0) from billreckon b
+		left join userinfo u on u.userId=b.userId
+		where 1=1
+		<include refid="sql_detail"></include>
+	</select>
+	<!-- 扣款操作 -->
+	<update id="upCutMoney" parameterType="hashmap">
+		update billreckon set cutMoney=#{cutMoney},actualMoney=#{actualMoney},cutRmark=#{cutRmark} where id=#{id}
+	</update>
+	<!-- 课程销售记录列表 -->
+	<select id="selClassSaleLogList" resultType="hashmap" parameterType="hashmap">
+		select oe.orderno,IFNULL(u.realname,u.nickName) realname,
+		u.userName,o.`name`,o.presentPrice,p.price,o.rate,p.payMethodName,
+		(p.price*(o.rate/100)) AS ratePrice 
+		FROM ondemand_teacher ot
+		LEFT JOIN ondemand o on o.ondemandId=ot.ondemandId
+		LEFT JOIN orderitem oe on oe.productid=ot.ondemandId  
+		LEFT JOIN `order` od on od.id=oe.orderId
+		LEFT JOIN userinfo u on u.userId=od.userId
+		LEFT JOIN paylog p on p.sourceId=oe.orderId
+		WHERE ot.teacherId=#{userId} AND p.`status`=1 AND p.source=1 AND (oe.producttype=4 OR oe.producttype=8)
+		AND o.rate IS NOT NULL AND DATE_FORMAT(p.payTime,'%Y-%m')=DATE_FORMAT(#{time},'%Y-%m')
+		<if test="name!=null and name!=''">
+			and o.name like "%"#{name}"%"
+		</if>
+		<if test="startDate!=null and startDate!='' and endDate!=null and endDate!=''">
+			and p.payTime between STR_TO_DATE(#{startDate},"%Y-%m-%d") and STR_TO_DATE(#{endDate},"%Y-%m-%d")
+		</if>
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 课程销售记录count -->
+	<select id="selClassSaleLogCount" resultType="long" parameterType="hashmap">
+		select count(0) FROM ondemand_teacher ot
+		LEFT JOIN ondemand o on o.ondemandId=ot.ondemandId
+		LEFT JOIN orderitem oe on oe.productid=ot.ondemandId  
+		LEFT JOIN `order` od on od.id=oe.orderId
+		LEFT JOIN userinfo u on u.userId=od.userId
+		LEFT JOIN paylog p on p.sourceId=oe.orderId
+		WHERE ot.teacherId=#{userId} AND p.`status`=1 AND p.source=1 AND (oe.producttype=4 OR oe.producttype=8)
+		AND o.rate IS NOT NULL AND DATE_FORMAT(p.payTime,'%Y-%m')=DATE_FORMAT(#{time},'%Y-%m')
+		<if test="name!=null and name!=''">
+			and o.name like "%"#{name}"%"
+		</if>
+		<if test="startDate!=null and startDate!='' and endDate!=null and endDate!=''">
+			and p.payTime between STR_TO_DATE(#{startDate},"%Y-%m-%d") and STR_TO_DATE(#{endDate},"%Y-%m-%d")
+		</if>
+	</select>
+	<!-- 问答记录列表 -->
+	<select id="selQuestionloglist" resultType="hashmap" parameterType="hashmap">
+		SELECT pl.orderNo,u.userName,IFNULL(u.realname,u.nickName) realname,u.userId,date_format(pl.payTime,'%Y-%m') as payTime,
+		i.id,i.content,we.questionPrice,pl.price,pl.payMethodName,
+		FORMAT(pl.price*(c.questionRate/100),2) AS ratePrice,i.divideStatus
+		 FROM interlocution i 
+		LEFT JOIN userinfo u on u.userId=i.lecturer
+		LEFT JOIN writer_extendmsg we on we.userId=u.userId
+		LEFT JOIN paylog pl on pl.sourceId=i.id
+		LEFT JOIN centssetup c on c.userId=i.lecturer
+		WHERE i.lecturer=#{userId} AND i.type=2 AND i.payStatus=1
+		AND pl.`status`=1 AND pl.source=3 AND c.questionRate IS NOT NULL
+		AND DATE_FORMAT(pl.payTime,'%Y-%m')=DATE_FORMAT(#{time},'%Y-%m')
+		<if test="content!=null and content!=''">
+			and i.content like "%"#{content}"%"
+		</if>
+		<if test="divideStatus!=null and divideStatus!=''">
+			and i.divideStatus=#{divideStatus}
+		</if>
+		<if test="startDate!=null and startDate!='' and endDate!=null and endDate!=''">
+			and pl.payTime between STR_TO_DATE(#{startDate},"%Y-%m-%d") and STR_TO_DATE(#{endDate},"%Y-%m-%d")
+		</if>
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 问答记录count -->
+	<select id="selQuestionCount" resultType="long" parameterType="hashmap">
+		SELECT count(0) FROM interlocution i 
+		LEFT JOIN userinfo u on u.userId=i.lecturer
+		LEFT JOIN writer_extendmsg we on we.userId=u.userId
+		LEFT JOIN paylog pl on pl.sourceId=i.id
+		LEFT JOIN centssetup c on c.userId=i.lecturer
+		WHERE i.lecturer=#{userId} AND i.type=2 AND i.payStatus=1
+		AND pl.`status`=1 AND pl.source=3 AND c.questionRate IS NOT NULL
+		AND DATE_FORMAT(pl.payTime,'%Y-%m')=DATE_FORMAT(#{time},'%Y-%m')
+		<if test="content!=null and content!=''">
+			and i.content like "%"#{content}"%"
+		</if>
+		<if test="divideStatus!=null and divideStatus!=''">
+			and i.divideStatus=#{divideStatus}
+		</if>
+		<if test="startDate!=null and startDate!='' and endDate!=null and endDate!=''">
+			and pl.payTime between STR_TO_DATE(#{startDate},"%Y-%m-%d") and STR_TO_DATE(#{endDate},"%Y-%m-%d")
+		</if>
+	</select>
+	<!-- 打赏记录列表 -->
+	<select id="selRewardLogList" resultType="hashmap" parameterType="hashmap">
+		SELECT pll.orderNo,u.userName,IFNULL(u.realname,u.nickName) AS realname,u.userId,date_format(pll.payTime,'%Y-%m') as payTime,
+		r.remark,r.id,pll.price,pll.payMethodName,(pll.price*(ct.rewardRate/100)) AS ratePrice,r.`status`
+		FROM rewardlog r
+		LEFT JOIN userinfo u on u.userId=r.beRewarding
+		LEFT JOIN paylog pll ON pll.sourceId=r.id
+		LEFT JOIN centssetup ct on ct.userId=r.beRewarding
+		WHERE r.beRewarding=#{userId} AND r.state=1
+		AND pll.source=5 AND pll.`status`=1 AND ct.rewardRate IS NOT NULL
+		AND DATE_FORMAT(pll.payTime,'%Y-%m')=DATE_FORMAT(#{time},'%Y-%m')
+		<if test="remark!=null and remark!=''">
+			and r.remark like "%"#{remark}"%"
+		</if>
+		<if test="status!=null and status!=''">
+			and r.status=#{status}
+		</if>
+		<if test="startDate!=null and startDate!='' and endDate!=null and endDate!=''">
+			and pll.payTime between STR_TO_DATE(#{startDate},"%Y-%m-%d") and STR_TO_DATE(#{endDate},"%Y-%m-%d")
+		</if>
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 打赏记录count -->
+	<select id="selRewardLogCount" resultType="long" parameterType="hashmap">
+		SELECT count(0) FROM rewardlog r
+		LEFT JOIN userinfo u on u.userId=r.beRewarding
+		LEFT JOIN paylog pll ON pll.sourceId=r.id
+		LEFT JOIN centssetup ct on ct.userId=r.beRewarding
+		WHERE r.beRewarding=#{userId} AND r.state=1
+		AND pll.source=5 AND pll.`status`=1 AND ct.rewardRate IS NOT NULL
+		AND DATE_FORMAT(pll.payTime,'%Y-%m')=DATE_FORMAT(#{time},'%Y-%m')
+		<if test="remark!=null and remark!=''">
+			and r.remark like "%"#{remark}"%"
+		</if>
+		<if test="status!=null and status!=''">
+			and r.status=#{status}
+		</if>
+		<if test="startDate!=null and startDate!='' and endDate!=null and endDate!=''">
+			and pll.payTime between STR_TO_DATE(#{startDate},"%Y-%m-%d") and STR_TO_DATE(#{endDate},"%Y-%m-%d")
+		</if>
+	</select>
+	
+	<!-- 更改问答记录状态 -->
+	<update id="updateInterlocution" parameterType="hashmap">
+		update interlocution set divideStatus=#{status} where id=#{id}
+	</update>
+	<!-- 更改打赏分成状态 -->
+	<update id="updateReward" parameterType="hashmap">
+		update rewardlog set status=#{status} where id=#{id}
+	</update>
+	<!-- 查询分成批次id -->
+	<select id="selBillReckonId" resultType="String" parameterType="hashmap">
+		select batchId from billreckon where year=#{year} and month=#{month} and userId=#{userId}
+	</select>
+	<!-- 扣除无效款项 -->
+	<update id="updateMoney" parameterType="hashmap">
+		update billreckon set 
+		<!-- 问答 -->
+		<if test="type==1">
+			<if test="statusType==1">
+				questionMoney=questionMoney-#{ratePrice},
+			</if>
+			<if test="statusType==2">
+				rewardMoney=rewardMoney-#{ratePrice},
+			</if>
+			shouldMoney=shouldMoney-#{ratePrice},actualMoney=actualMoney-#{ratePrice}
+		</if>
+		<if test="type==2">
+			<if test="statusType==1">
+				questionMoney=questionMoney+#{ratePrice},
+			</if>
+			<if test="statusType==2">
+				rewardMoney=rewardMoney+#{ratePrice},
+			</if>
+			shouldMoney=shouldMoney+#{ratePrice},actualMoney=actualMoney+#{ratePrice}
+		</if>
+		where year=#{year} and month=#{month} and userId=#{userId}
+	</update>
+	<!-- 扣除批次中的无效款项 -->
+	<update id="updateBatchPrice" parameterType="hashmap">
+		update billreckon_examine set 
+		<if test="statusType==1">
+			<if test="type==1">
+				totalQuestionMoney=totalQuestionMoney-#{ratePrice} 
+			</if>
+			<if test="type==2">
+				totalQuestionMoney=totalQuestionMoney+#{ratePrice} 
+			</if>
+		</if>
+		<if test="statusType==2">
+			<if test="type==1">
+				totalRewardMoney=totalRewardMoney-#{ratePrice} 
+			</if>
+			<if test="type==2">
+				totalRewardMoney=totalRewardMoney+#{ratePrice} 
+			</if>
+		</if>
+		where id=#{batchId}
+	</update>
+	
+	<!-- 查询已经计算的月份 -->
+	<select id="selYearByMonth" resultType="hashmap" parameterType="hashmap">
+		select month from billreckon where year=#{year} group by month
+	</select>
+	
+</mapper>

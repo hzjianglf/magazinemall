@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+		"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="phoneQuestionDao" >
+	
+	<!-- 查询提问专家的费用 -->			
+	<select id="selQuestionInfo" parameterType="int" resultType="String">
+		select IFNULL(questionPrice,0) price from writer_extendmsg where userId=#{teacherId}
+	</select>
+	<!-- 教师名称 -->
+	<select id="teacherName" parameterType="hashmap" resultType="String">
+		select ui.nickName from userinfo ui
+		left join interlocution ilc on ilc.lecturer=ui.userId
+		<if test="quesOrAnswer!=null and quesOrAnswer!='' and quesOrAnswer==1">
+			left join paylog s on s.sourceId=ilc.id
+			where s.id=#{payLogId}
+		</if>
+		<if test="quesOrAnswer!=null and quesOrAnswer!='' and quesOrAnswer==2">
+			left join audit a on a.interlocutionId=ilc.id
+			left join paylog s on s.sourceId=a.id
+			where s.id=#{payLogId}
+		</if>
+		
+	</select>
+	<!-- 查询余额 -->
+	<select id="selBalance" parameterType="String" resultType="String">
+		select balance from useraccount where customerId=#{userId}
+	</select>
+	<!-- 问答列表count -->
+	<select id="selQuestionCount" resultType="long">
+		select count(0) from interlocution
+		WHERE answerState=2 and questionState=1 and status=1
+	</select>
+</mapper>

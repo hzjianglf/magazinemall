@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="userDao">
+	<!-- 模糊查询sql块 -->
+	<!-- (u.userType = 0 or u.userType = 1) and u.isDelete = 0 -->
+	<sql id="sql_where2">
+		<where>
+			u.isDelete = 0
+			<if test="userType !=null and userType !='' "> 
+				and u.userType = #{userType} 
+			</if>
+			<if test="userName !=null and userName !='' "> 
+				and (u.userName like "%"#{userName}"%" 
+				or u.realname like "%"#{userName}"%" 
+				or u.userCode like "%"#{userName}"%") 
+			</if>
+			<if test="roleName !=null and roleName !='' "> and r.roleName = #{roleName}</if>
+			<if test="store !=null and store !='' "> and u.storeId = #{store}</if>
+			<if test="isFreeze !=null and isFreeze !='' "> and u.isFreeze = #{isFreeze}</if>
+		</where>
+	</sql>
+	<!-- 根据名字查询管理员是否重复 -->
+	<select id="selByName" parameterType="map" resultType="int">
+		select count(userid) from userinfo where username=#{userName} and userType =#{userType}
+	</select>
+	<!-- 查询手机号是否重复 -->
+	<select id="selByPhone" parameterType="map" resultType="int">
+		select count(userid) from userinfo where telenumber=#{telenumber} and userType =#{userType}
+	</select>
+	<!-- 查询为删除管理员列表信息 -->
+	<select id="selectAdminUser" resultType="hashmap" parameterType="hashmap">
+		select u.userId,u.userName,u.telenumber,u.email,u.userCode,u.realname,DATE_FORMAT(u.registrationDate,'%Y-%m-%d %T') registrationDate,
+		GROUP_CONCAT(r.roleName) roleName, 
+		case when u.sex = 0 then '男' when u.sex = 1 then '女' end sex,
+		case when u.isFreeze = 0 then '冻结' when u.isFreeze = 1 then '活跃' end isFreeze
+		from userinfo u 
+		LEFT JOIN userrole ur on u.userId=ur.userId 
+		LEFT JOIN role r on r.roleid=ur.roleId
+		<include refid="sql_where2" /> GROUP BY u.userId ORDER BY u.registrationDate DESC
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 查询未删除管理员总数 -->
+	<select id="countAdminUser" resultType="long" parameterType="hashMap">
+		select count(*) from userinfo u LEFT JOIN userrole ur on u.userId=ur.userId 
+		LEFT JOIN role r on r.roleid=ur.roleId
+		<include refid="sql_where2" />
+	</select>
+	<!-- 查询后台角色 -->
+	<select id="selRoleByIdentify2" resultType="hashmap" parameterType="String">
+		select * from role where 1 = 1
+		<if test="_parameter==0">
+			and identify = 0
+		</if>
+		<if test="_parameter==1">
+			and identify = 1
+		</if>
+		<if test="_parameter==2">
+			and identify = 2
+		</if>
+	</select>
+	<!-- 添加用户角色关联表 -->
+	<insert id="addUserRole" parameterType="map">
+		insert into userrole (userId,roleId)  values
+		<foreach collection="roleId" index="index" item="item"
+			separator=",">
+			( #{userId}, #{item} )
+		</foreach>
+	</insert>
+	<!-- 添加管理员 -->
+	<sql id="userInfoColumn">
+		userName,userPwd,userCode,telenumber,email,realname,birthDate,sex,
+		address,identitynumber,registrationDate,userType,isAdmin
+	</sql>
+	<insert id="addAdminUserInfo" useGeneratedKeys="true" keyProperty="userId" parameterType="hashmap">
+		insert into userInfo
+		<trim prefix="(" suffix=")" suffixOverrides="," >
+			userName,userPwd,userCode,telenumber,email,realname,birthDate,sex,
+			address,identitynumber,registrationDate,userType,isAdmin,
+			<if test='approve != null'>
+	             approve,
+	        </if>
+	        <if test='remark != null and remark !="" '>
+	             remark,
+	        </if>
+	        <if test='documentType != null and documentType !="" '>
+	             documentType,
+	        </if>
+	        <if test='IDpic != null and IDpic !="" '>
+	             IDpic,
+	        </if>
+	        <if test='oneselfPic != null and oneselfPic !="" '>
+	             oneselfPic,
+	        </if>
+	        <if test="userUrl !=null and userUrl !=''">
+				userUrl,
+			</if>
+		</trim>
+		<trim prefix="values (" suffix=")" suffixOverrides="," >
+			#{userName},#{userPwd},#{userCode},#{telenumber},#{email},#{realname},#{birthDate},#{sex},
+			#{address},#{identitynumber},now(),#{userType},#{isAdmin},
+			<if test='approve != null'>
+	             #{approve},
+	        </if>
+	        <if test='remark != null and remark !=""'>
+	             #{remark},
+	        </if>
+	         <if test='documentType != null and documentType !=""'>
+	             #{documentType},
+	        </if>
+	        <if test='IDpic != null and IDpic !=""'>
+	             #{IDpic},
+	        </if>
+	        <if test='oneselfPic != null and oneselfPic !=""'>
+	             #{oneselfPic},
+	        </if>
+	        <if test='userUrl != null and userUrl !=""'>
+	             #{userUrl},
+	        </if>
+		</trim>
+		
+		
+	</insert>
+	<!-- 通过ID查询单个用户 -->
+	<!-- GROUP_CONCAT(CAST(r.roleId AS char)) roleId -->
+	<select id="selectUserInfoById" parameterType="String" resultType="hashmap">
+		select u.*,GROUP_CONCAT(r.roleName) roleName,GROUP_CONCAT(r.roleId) roleId
+		from userinfo u LEFT JOIN userrole ur on u.userId=ur.userId 
+		LEFT JOIN role r on r.roleid=ur.roleId  where u.userId=#{userId}
+	</select>
+	<!-- 修改管理员 -->
+	<update id="updateUser" parameterType="hashmap">
+		UPDATE USERINFO set userName=#{userName}
+		<if test="userPwd !=null and userPwd !='' "> ,userPwd=#{userPwd}</if>
+		,telenumber=#{telenumber},email=#{email},realname=#{realname},birthDate=#{birthDate},
+		sex=#{sex},address=#{address},identitynumber=#{identitynumber}
+		WHERE userid=#{userId}
+	</update>
+	<!-- 删除用户的角色 -->
+	<delete id="del" parameterType="map">
+		delete from userrole where userId=#{userId}
+	</delete>
+	<!-- 查询用户下的角色 -->
+	<select id="select" parameterType="map" resultType="int">
+		select count(*) from userrole where userId=#{userId}
+	</select>
+	<!-- 删除用户 -->
+	<delete id="deleteUser" parameterType="map">
+		delete userInfo,userrole from userInfo left join userrole on 
+		userInfo.userId = userrole.userId where userInfo.userId in 
+		<foreach collection="userId" open="(" separator="," close=")" item="id">#{id}</foreach>
+	</delete>
+	<!-- 冻结用户 -->
+	<update id="lockUser" parameterType="map">
+		update userinfo set isFreeze = 0 where userId in 
+		<foreach collection="userId" open="(" separator="," close=")" item="id">#{id}</foreach>
+	</update>
+	<!-- 解冻用户 -->
+	<update id="unlockUser" parameterType="map">
+		update userinfo set isFreeze = 1 where userId in 
+		<foreach collection="userId" open="(" separator="," close=")" item="id">#{id}</foreach>
+	</update>
+	<!-- 查询最后一个添加的工号 -->
+	<select id="getLastUserCode" resultType="map">
+		select userCode from userinfo order by userCode desc limit 1
+	</select>
+	<!-- 关联useraccount表 -->
+	<insert id="addUserAccount" parameterType="string">
+		insert into useraccount (customerId) values(#{userId});
+	</insert>
+	<select id="selUserUserBytelenumber" parameterType="string" resultType="int">
+		select count(0) from userinfo where telenumber=#{telenumber} and isAdmin=0
+	</select>
+	
+	<!-- 根据openId 获取用户信息 -->
+	<select id="selUserByOpenId" parameterType="string" resultType="hashmap">
+		SELECT userId,userName,userCode,userPwd,telenumber,userType 
+		FROM userinfo 
+		WHERE isFreeze=1 AND isDelete=0 AND isAdmin=0 AND openId=#{openId}
+	</select>
+	
+	<select id="selectTeachersFromAdverCount" resultType="long" parameterType="hashmap">
+		select count(0) from userinfo where userType = 2 and isDelete = 0 and isFreeze = 1
+	</select>
+	<select id="selTeachersFromAdver" resultType="hashmap" parameterType="hashmap">
+		select * from 
+		userinfo 
+		where userType = 2 and isDelete = 0 and isFreeze = 1
+		limit #{start},#{pageSize}
+	</select>
+</mapper>

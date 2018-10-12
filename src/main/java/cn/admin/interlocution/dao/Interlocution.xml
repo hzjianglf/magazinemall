@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="interlocutionDao">
+	<!-- 查询条件 -->
+	<sql id="sql_where">
+		<!-- <if test="questionState != null and questionState != ''">
+			and i.questionState=#{questionState}
+		</if> -->
+		<if test="answerState != null and answerState != ''">
+			and i.answerState=#{answerState}
+		</if>
+		<if test="content != null and content != ''">
+			and i.content like "%"#{content}"%"
+		</if>
+		<if test="teacher != null and teacher != ''">
+			and us.realname like "%"#{teacher}"%"
+		</if>
+		<if test="questioner != null and questioner != ''">
+			and (u.realname like "%"#{questioner}"%") OR (u.nickName like "%"#{questioner}"%")
+		</if>
+		<if test="startDate != null and startDate !=''">
+			and i.inputDate &gt;= #{startDate}
+		</if>
+		<if test="endDate != null and endDate != ''">
+			and i.inputDate &lt;= #{endDate}
+		</if>
+	</sql>
+	
+	<!-- 问答列表 -->
+	<select id="selInterlocutionList" resultType="hashmap" parameterType="hashmap">
+		SELECT i.id,i.content, ifnull(u.nickName,u.realname) questioner, ifnull(us.realname,us.nickName) lecturer,
+		case i.refundIsSuccess  when 0 then '未退款' when 1 then '已退款' end refundIsSuccess,
+		case i.answerState  when 0 then '已关闭' when 1 then '待回答' when 2 then '已回答' end answerState,i.questionState,
+		DATE_FORMAT(i.inputDate,'%Y-%m-%d %T') inputDate,case i.type when 1 then '提问课程' when 2 then '提问专家' end type
+		from interlocution i 
+		LEFT JOIN userinfo u on i.questioner = u.userId
+		LEFT JOIN userinfo us on i.lecturer = us.userId
+ 		where 1=1 and i.questionState=#{questionState} and i.payStatus=1
+		<include refid="sql_where"></include>
+		ORDER BY i.id desc
+		limit #{start},#{pageSize}
+
+	</select>
+	<!-- count -->
+	<select id="selInterlocutionCount" resultType="long" parameterType="hashmap">
+		select count(i.id) from interlocution i
+		left join userinfo us on us.userId=i.questioner
+		left join userinfo u on u.userId=i.lecturer
+		where 1=1 and i.questionState=#{questionState} and i.payStatus=1 and status = 1
+		<include refid="sql_where"></include>
+	</select>
+	<!-- 审核 -->
+	<update id="updateStatus" parameterType="hashmap">
+		update interlocution set questionState=#{status},remark=#{remark} where id=#{id}
+	</update>
+	<!-- 取消审核 -->
+	<update id="cancelStatus" parameterType="hashmap">
+		update interlocution set questionState=0 where id=#{id}
+	</update>
+	<!-- 删除问答 -->
+	<delete id="deleteInterlocution" parameterType="hashmap">
+		delete from interlocution where id=#{id}
+	</delete>
+	<!-- 查询满足退款条件的interlocution表记录-->
+	<select id="selRefundCondition" resultType="hashmap">
+		SELECT
+			*
+		FROM
+			interlocution
+		WHERE
+			logType = 0
+		AND STATUS = 1
+		AND payStatus = 1
+		AND answerState = 1
+		AND refundIsSuccess = 0
+		<!-- 大于提问时间72小时 -->
+		AND TIMESTAMPDIFF(MINUTE, inputDate, now()) > 4320
+	</select>
+	<select id="selBalance" resultType="hashmap" parameterType="hashmap">
+		select * from useraccount where customerId = #{userId}
+	</select>
+	<update id="updateBalance" parameterType="hashmap">
+		update useraccount set balance=#{totalMoney} where customerId = #{userId}
+	</update>
+	<insert id="inertAccountLogRecord" parameterType="hashmap">
+		insert into useraccountlog (userId,type,money,balance,time,num,status,month,paystatus) values
+		 (#{userId},#{type},#{money},#{balance},now(),#{num},#{status},#{month},1)
+	</insert>
+	<update id="updateRefundIsSuccess" parameterType="hashmap">
+		update interlocution set refundIsSuccess=1,status=0
+		<if test="questionState != null">
+		  ,questionState=#{questionState}
+		</if>
+		<if test="remark != null and remark != ''">
+		  ,remark=#{remark}
+		</if>
+		 where id=#{id}
+	</update>
+	<select id="selInterlocutionSingleRecord" resultType="hashmap" parameterType="String">
+		select * from interlocution where id = #{id}
+	</select>
+</mapper>

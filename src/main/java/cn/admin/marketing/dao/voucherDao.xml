@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 代金券 -->
+<mapper namespace="voucherDao">
+	
+	<sql id="Where">
+		<if test="voucherName!=null and voucherName!='' ">
+			and name like "%"#{voucherName}"%"  
+		</if>
+		<if test="state!=null and state!=''">
+			and state=#{state}
+		</if>
+	</sql>
+	
+	<!-- 查询代金券总条数 -->
+	<select id="selTotalCount" parameterType="hashmap" resultType="long">
+		select count(0) from voucher where isDel=0
+		<include refid="Where"></include>
+	</select>
+	<!-- 查询代金券列表 -->
+	<select id="selVoucherList" parameterType="hashmap" resultType="hashmap">
+		select *,date_format(startTime,"%Y-%m-%d") startDate,date_format(endTime,"%Y-%m-%d") endDate,
+		CASE when date_format(now(),"%Y-%m-%d") <![CDATA[<]]>  date_format(startTime,"%Y-%m-%d") THEN '1' 
+		WHEN date_format(now(),"%Y-%m-%d") <![CDATA[>=]]> date_format(startTime,"%Y-%m-%d") and date_format(now(),"%Y-%m-%d") <![CDATA[<]]> date_format(endTime,"%Y-%m-%d") THEN '2'
+		WHEN date_format(now(),"%Y-%m-%d") <![CDATA[>]]> date_format(endTime,"%Y-%m-%d") THEN '3' else 0 end exceedTime
+		from voucher
+		where isDel=0
+		<include refid="Where"></include>
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 查看详情 -->
+	<select id="selDetail" parameterType="String" resultType="hashmap">
+		select *,date_format(startTime,"%Y-%m-%d") startDate,date_format(endTime,"%Y-%m-%d") endDate from voucher where Id=#{voucherId}
+	</select>
+	<!-- 添加代金券 -->
+	<insert id="addVoucher" parameterType="hashmap" useGeneratedKeys="true" keyProperty="couponId">
+		insert into voucher (name,price
+		<if test="startTime!=null and startTime!='' and endTime!=null and endTime!=''">
+			,startTime,endTime
+		</if>
+		,addTime,totalCount,surplusCount,state,founder,founderName,couponType
+		<if test="couponType!=null and couponType!='' and couponType==1 ">
+			,pinleiGoodsType
+		</if>
+		<if test="couponType!=null and couponType!='' and couponType==2 ">
+			,dingxiangGoodsType,dingxiangGoodsId,dingxiangGoodsName
+		</if>
+		
+		) values
+		
+		(#{name},#{price}
+		<if test="startTime!=null and startTime!='' and endTime!=null and endTime!=''">
+			,#{startTime},#{endTime}
+		</if>
+		,now(),#{totalCount},#{totalCount},#{state},#{userId},#{userName},#{couponType}
+		<if test="couponType!=null and couponType!='' and couponType==1 ">
+			,#{goodsTypeCheck}
+		</if>
+		<if test="couponType!=null and couponType!='' and couponType==2 ">
+			,#{goodsType},#{dingxiangId},#{searchGoods}
+		</if>
+		)
+	</insert>
+	<!-- 修改代金券信息 -->
+	<update id="updVoucher" parameterType="hashmap">
+		update voucher set name=#{name},price=#{price},startTime=#{startTime},endTime=#{endTime},
+		totalCount=#{totalCount},surplusCount=(#{totalCount} - #{alreadyIssued}),state=#{state},founder=#{userId},founderName=#{userName},couponType=#{couponType}
+		<if test="couponType!=null and couponType!='' and couponType==1 ">
+			,pinleiGoodsType=#{goodsTypeCheck}
+		</if>
+		<if test="couponType!=null and couponType!='' and couponType==2 ">
+			,dingxiangGoodsType=#{goodsType},dingxiangGoodsId=#{dingxiangId},dingxiangGoodsName=#{searchGoods}
+		</if>
+		where Id=#{voucherId}
+	</update>
+	<!-- 删除代金券 -->
+	<update id="delVoucherById" parameterType="Integer">
+		update voucher set isDel=1 where Id=#{voucherId}
+	</update>
+	<!-- 查询优惠券的剩余数量 -->
+	<select id="selVoucherCount" parameterType="Integer" resultType="Integer">
+		select surplusCount from voucher where Id=#{voucherId} 
+	</select>
+	<!-- 用户查询条件 -->
+	<sql id="userinfoWhere">
+		<if test="userName!=null and userName!='' ">
+			and ui.nickName like "%"#{userName}"%"
+		</if>
+		<if test="minJF!=null and minJF!='' ">
+			and uc.accountJF <![CDATA[>=#{minJF}]]> 
+		</if>
+		<if test="maxJF!=null and maxJF!='' ">
+			and uc.accountJF <![CDATA[<=#{maxJF}]]> 
+		</if>
+	</sql>
+	<!-- 查询用户数量 -->
+	<select id="selUserTotalCount" parameterType="hashmap" resultType="long">
+		select count(0) from userinfo ui
+		LEFT JOIN useraccount uc on uc.customerId=ui.userId
+		LEFT JOIN voucher_user cu ON cu.userId=ui.userId and cu.voucherId=#{voucherId}
+		where ui.isAdmin=0 <include refid="userinfoWhere"></include> and IFNULL(cu.id,0)=0
+	</select>
+	<!-- 查询用户信息 -->
+	<select id="selUserInfo" parameterType="hashmap" resultType="hashmap">
+		select ui.userId,ui.nickName realname, IFNULL(uc.accountJF,0) accountJF,IFNULL(cu.id,0) cuId from userinfo ui
+		LEFT JOIN useraccount uc on uc.customerId=ui.userId
+		LEFT JOIN voucher_user cu ON cu.userId=ui.userId and cu.voucherId=#{voucherId}
+		where ui.isAdmin=0 <include refid="userinfoWhere"></include> and IFNULL(cu.id,0)=0
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 添加优惠券和用户关系表 -->
+	<insert id="addVoucherUser" parameterType="hashmap">
+		insert into voucher_user (userId,voucherId,addTime) values (#{userId},#{voucherId},now())
+	</insert>
+	<!-- 修改优惠券的发行和剩余数量 -->
+	<update id="updVoucherCount" parameterType="hashmap">
+		update voucher set alreadyIssued=alreadyIssued+#{grantCount},surplusCount=surplusCount-#{grantCount}
+		<if test="surplusCount==grantCount">
+			,state=2
+		</if>
+		where Id=#{voucherId}
+	</update>
+	<!-- 启用禁用 -->
+	<update id="changeStateById" parameterType="hashmap">
+		update voucher set state = #{type} where Id=#{voucherId}
+	</update>
+	<!-- 查询已发代金券数量 -->
+	<select id="alreadyGrantCount" parameterType="hashmap" resultType="long">
+		select count(0) from voucher_user where voucherId=#{voucherId}
+		<if test="type!=null and type!='' and type==1">
+			and useState=1
+		</if>
+	</select>
+	<!-- 查询已发代金券信息 -->
+	<select id="selAlreadyGrantList" parameterType="hashmap" resultType="hashmap">
+		select cu.id cuId,date_format(cu.addTime,"%Y-%m-%d %T") grantTime,cu.orderNo,ui.nickName realname,case cu.useState WHEN 0 THEN '未使用' WHEN 1 THEN '已使用' end stateName from voucher_user cu
+		left join voucher c on c.Id=cu.voucherId
+		left join userinfo ui on ui.userId=cu.userId
+		where voucherId=#{voucherId}
+		<if test="type!=null and type!='' and type==1">
+			and useState=1
+		</if>
+	</select>
+</mapper>

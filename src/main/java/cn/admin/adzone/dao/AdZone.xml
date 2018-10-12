@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+	<mapper namespace="adZoneDao" >
+		<sql id="adZone">
+			zoneName,zoneIntro,zoneWidth,zoneHeight,active,updateTime
+		</sql>
+		<!-- 获取广告位总数 -->
+		<select id="countAdZoneList" resultType="long" parameterType="hashMap">
+			select count(*) from adzone
+		</select>
+		<!-- 获取广告位列表 -->
+		<select id="selectAdZoneList" resultType="hashmap" parameterType="hashmap">
+			select 
+			zoneID,zoneName,zoneIntro,zoneHeight,zoneWidth,CONCAT(zoneHeight,'*',zoneWidth) size,zoneType,active
+			from adzone limit #{start},#{pageSize}
+		</select>
+		<!-- 添加广告位 -->
+		<insert id="addAdZone" parameterType="hashmap">
+			insert into adzone(zoneName,zoneIntro,zoneType,zoneWidth,zoneHeight,active,updateTime) 
+			values(#{zoneName},#{zoneIntro},#{zoneType},#{zoneWidth},#{zoneHeight},#{active},now())
+		</insert>
+		<!-- 广告位详情 -->
+		<select id="getAdZoneDetail" parameterType="String" resultType="hashmap">
+			select * from adzone where zoneID = #{zoneID}
+		</select>
+		<!--修改-->
+		<update id="updateAdZone" parameterType="hashmap">
+			update adzone 
+			set 
+			zoneName=#{zoneName},zoneIntro=#{zoneIntro},zoneType=#{zoneType},
+			zoneWidth=#{zoneWidth},zoneHeight=#{zoneHeight},active=#{active},updateTime=now() 
+			where zoneID=#{zoneID}
+		</update>
+		<!-- 更改广告位状态 -->
+		<update id="updateAdZoneStatus" parameterType="map">
+			update adzone set active=#{status} where zoneID=#{zoneID}
+		</update>
+		
+	</mapper>

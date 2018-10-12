@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+	<mapper namespace="DictionaryDao">
+		<!--dictionary-->
+		<!--查询所有-->
+		<select id="selectDictionary" parameterType="hashmap"  resultType="hashmap">
+			select * from dictionary
+			where 1=1
+			<if test="title != null and tilte != ''">
+				and dictionaryName like "%"#{title}"%"
+			</if>
+			limit #{start},#{pageSize}
+		</select>
+		<select id="countDic" resultType="long" parameterType="hashMap">
+			select count(*) from dictionary 
+			where 1=1
+			<if test="title != null and tilte != ''">
+				and dictionaryName like "%"#{title}"%"
+			</if>
+		</select>
+		<!--根据Id查询字典-->
+		<select id="selectDictionaryById" parameterType="int"  resultType="hashmap">
+			select * from dictionary where dictionaryId=#{dictionaryId}
+		</select>
+		<update id="updateDictionary" parameterType="hashmap">
+			UPDATE dictionary
+			<set>
+				<if test="dictionaryName !=null and dictionaryName!='' ">
+					dictionaryName=#{dictionaryName},
+				</if>
+				dictionaryDescription=#{dictionaryDescription},
+				dictionaryType=#{dictionaryType}
+			</set>
+			where dictionaryId=#{dictionaryId}
+		</update>
+		
+		<insert id="insertDictionary" useGeneratedKeys="true" keyProperty="dictionaryId"  parameterType="hashmap">
+			insert into dictionary(dictionaryName,dictionaryDescription,dictionaryType) values(#{dictionaryName},#{dictionaryDescription},#{dictionaryType})
+		</insert>
+		<delete id="delDictionary" parameterType="integer">
+			delete from dictionary where dictionaryId=#{_parameter}
+		</delete>
+		
+		<select id="selectDictInfo" parameterType="Integer" resultType="hashmap">
+			select itemName,itemValue from dictionary_item
+			<where>
+				<if test="_parameter !=null and _parameter!='' ">
+					dictionaryId=#{_parameter}
+				</if>
+			</where>
+		</select>
+		
+		<!--dictionary_item  -->
+		<select id="selectDictionaryInfo" parameterType="Integer" resultType="hashmap">
+			select * from dictionary_item
+			<where>
+				<if test="_parameter !=null and _parameter!='' ">
+					dictionaryId=#{_parameter}
+				</if>
+			</where>
+			order by orderIndex
+		</select>
+		<select id="selectDictionaryInfoCount" parameterType="Integer" resultType="long">
+			select count(*) from dictionary_item
+			<where>
+				<if test="_parameter !=null and _parameter!='' ">
+					dictionaryId=#{_parameter}
+				</if>
+			</where>
+		</select>
+		<select id="selectDictionaryInfoByItemId" parameterType="Integer" resultType="hashmap">
+			select * from dictionary_item
+			<where>
+				<if test="_parameter !=null and _parameter!='' ">
+					itemId=#{_parameter}
+				</if>
+			</where>
+		</select>
+		<update id="updateDictionaryInfo" parameterType="hashmap">
+			UPDATE dictionary_item
+			<set>
+				<if test="itemName!=null and itemName!='' ">
+					itemName=#{itemName},
+				</if>
+				<if test="orderIndex!=null and orderIndex!='' ">
+				orderIndex=#{orderIndex}
+				</if>
+			</set>
+			where itemId=#{itemId}
+		</update>
+																					
+		<insert id="addDictionaryInfo" useGeneratedKeys="true" keyProperty="itemId"  parameterType="hashmap">
+			insert into dictionary_item(dictionaryId,itemName,itemValue,orderIndex) values(#{dictId},#{itemName},#{itemValue},#{orderIndex})
+		</insert>
+		
+		<delete id="delDictionaryInfo" parameterType="Integer">
+			delete from dictionary_item where itemId=#{_parameter}
+		</delete>
+		<!-- 查询最大的项值 -->
+		<select id="selMaxValue" parameterType="String" resultType="hashMap">
+			select MAX(itemValue) itemValue,MAX(orderIndex) orderIndex from dictionary_item where dictionaryId=#{dictionaryId}
+		</select>
+		<!-- 查询所有类型（下拉框遍历） -->
+		<select id="selectDictionaryTypeList" resultType="hashMap">
+			select * FROM dictionary WHERE dictionaryType != ''
+		</select>
+		<!-- 查询名称 -->
+		<select id="selDictName" resultType="String" parameterType="hashmap">
+			select dictionaryName from dictionary where dictionaryId=#{dictId}
+		</select>
+		
+	</mapper>

@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="perDao">
+	<sql id="wh">
+		<if test="magazine!=null and magazine!=''">
+			and magazine like "%"#{magazine}"%"
+		</if>
+		<if test="founder!=null and founder!=''">
+			and founder like "%"#{founder}"%"
+		</if>
+		<if test="name!=null and name!=''">
+			and name like "%"#{name}"%"
+		</if>
+	</sql>
+	<!-- 查询期刊总条数 -->
+	<select id="getPeriodicalCount" parameterType="hashmap" resultType="long">
+		select count(*) from periodical where 1=1 <include refid="wh"></include>
+	</select>
+	<!-- 查询期刊列表 -->
+	<select id="getPeriodicalList" parameterType="hashmap" resultType="hashmap">
+		select *,date_format(inputDate, '%Y-%m-%d %H:%i:%S') date from periodical where 1=1 <include refid="wh"></include>  
+		ORDER BY id desc
+	</select>
+	<!-- 添加期刊 -->
+	<insert id="adds" parameterType="hashmap">
+		insert into periodical (name,magazine,cycle,editor,issn,describes,inputDate,founder,state)
+		values (#{name},#{magazine}, #{cycle}, #{editor}, #{issn}, #{describes}, now(),#{founder},#{state})
+	</insert>
+	<!-- 通过id查询期刊内容 -->
+	<select id="selOne" parameterType="String" resultType="hashmap">
+		select * from periodical where id=#{_parameter}
+	</select>
+	<!-- 修改期刊 -->
+	<update id="ups" parameterType="hashmap">
+		update periodical set name=#{name},magazine=#{magazine},cycle=#{cycle},editor=#{editor},issn=#{issn},describes=#{describes},state=#{state}
+		where id=#{id}
+	</update>
+	<!-- 删除期刊 -->
+	<delete id="deletePeriodical" parameterType="String">
+		delete from periodical where id=#{_parameter}
+	</delete>
+	<!-- 删除期刊下的所有期次 -->
+	<delete id="deleteIssue" parameterType="String">
+		delete from publishingplan where periodicalId=#{_parameter}
+	</delete>
+	<!-- 修改期刊状态 -->
+	<update id="upState" parameterType="hashmap">
+		update periodical set state=#{state}
+		where id=#{id}
+	</update>
+	<!-- 查询指定期刊板块和栏目的数量 -->
+	<select id="selectColumnsCount" parameterType="hashmap" resultType="long">
+		SELECT count(0) from (
+			SELECT CategoryID FROM `category` where IsDeleted=0 and IssueID=#{id}
+			<if test="isFree!=null and isFree==1">
+				and status=1
+			</if>
+			UNION ALL
+			SELECT ColumnID from `columns`c
+			LEFT JOIN category cg on c.CategoryID=cg.CategoryID
+			where c.IsDeleted=0 and cg.IsDeleted=0 and c.IssueID=#{id}
+			<if test="isFree!=null and isFree==1">
+				and c.status=1 and cg.status=1
+			</if>
+		) t
+	</select>
+	<!-- 查询指定期刊板块和栏目数据 -->
+	<select id="selectColumnsData" parameterType="hashmap" resultType="hashmap">
+		SELECT CategoryID as id,1 as type, CategoryName,'-' as parent,status,isShow,OrderNo,IssueID
+		FROM `category` where IsDeleted=0 and IssueID=#{id}
+		<if test="isFree!=null  and isFree==1">
+				and status=1
+		</if>
+			UNION ALL
+		SELECT c.ColumnID,2,c.ColumnName,cg.CategoryName,c.status,c.isShow,c.OrderNo,c.IssueID from `columns` c
+		LEFT JOIN category cg on c.CategoryID=cg.CategoryID
+		where c.IsDeleted=0 and cg.IsDeleted=0 and c.IssueID=#{id}
+		<if test="isFree!=null  and isFree==1">
+				and c.status=1 and cg.status=1
+		</if>
+	</select>
+	<!--查找指定期刊下的板块 -->
+	<select id="selCategoryByPubId" parameterType="int" resultType="hashmap">
+		SELECT * FROM `category` where IssueID=#{publishId} and status=1 and IsDeleted=0; 
+	</select>
+	<!-- 添加板块 -->
+	<insert id="addCategory" parameterType="hashmap">
+		insert into category (CategoryName,IssueID,orderNo,status,isShow)
+		values (#{name},#{publishId}, #{OrderNo}, #{status}, #{isShow})
+	</insert>
+	<!-- 编辑板块 -->
+	<update id="updCategory" parameterType="hashmap">
+		update category set CategoryName=#{name},orderNo=#{OrderNo},
+		status=#{status},isShow=#{isShow} where IssueID=#{id}
+	</update>
+	<!-- 添加栏目 -->
+	<insert id="addColunms" parameterType="hashmap">
+		insert into columns (ColumnName,CategoryID,IssueID,orderNo,status,isShow)
+		values (#{name},#{category}, #{publishId}, #{OrderNo}, #{status}, #{isShow})
+	</insert>
+	<!-- 编辑栏目 -->
+	<update id="updColunms" parameterType="hashmap">
+		update columns set ColumnName=#{name},CategoryID=#{category},
+		orderNo=#{OrderNo},status=#{status},isShow=#{isShow} where IssueID=#{id}
+	</update>
+	<!-- 修改栏目状态 -->
+	<update id="updColumnsStatus" parameterType="hashmap">
+		update columns set status = #{status} where ColumnID=#{id}
+	</update>
+	<!-- 修改板块状态 -->
+	<update id="updCategoryStatus" parameterType="hashmap">
+		update category set status = #{status} where CategoryID=#{id}
+	</update>
+	<!-- 通过id查询板块 -->
+	<select id="selCategoryById" parameterType="hashmap" resultType="hashmap">
+		select  CategoryName as name,status,isShow,OrderNo,IssueID as publishId
+		from category where CategoryID=#{id}
+	</select>
+	<!-- 通过id查询栏目 -->
+	<select id="selColumnsById" parameterType="hashmap" resultType="hashmap">
+		select ColumnName name,CategoryID,status,isShow,OrderNo,IssueID as publishId
+		 from columns where ColumnID=#{id}
+	</select>
+	<!-- 删除板块 -->
+	<update id="delCategory" parameterType="hashmap">
+		update category set IsDeleted = 1 where CategoryID=#{id}
+	</update>
+	<!-- 删除栏目 -->
+	<update id="delColumns" parameterType="hashmap">
+		update columns set IsDeleted = 1 where ColumnID=#{id}
+	</update>
+</mapper>

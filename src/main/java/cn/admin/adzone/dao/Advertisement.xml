@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="adverDao">
+	<sql id="Adver">
+		aDName,advType,imgUrl,imgWidth,imgHeight,aDIntro,linkUrl,
+		linkTarget,linkAlt,priority,clicks,passed,updateTime
+	</sql>
+	<!-- 查询广告位里的广告 -->
+	<select id="selAdver" parameterType="integer" resultType="hashmap">
+		SELECT a.aDID,a.aDName,a.advType,a.imgUrl,a.imgWidth,a.imgHeight,a.aDIntro,a.linkUrl,
+		a.linkTarget,a.linkAlt,a.priority,a.clicks,a.passed,DATE_FORMAT(a.updateTime,'%Y-%m-%d %T') updateTime 
+		FROM advertisement AS a LEFT JOIN advertisementzone AS az ON
+		az.aDID = a.aDID
+		WHERE az.zoneID = #{zoneID} LIMIT #{start},#{pageSize}
+	</select>
+	<select id="countAdver" resultType="long" parameterType="hashMap">
+		select count(a.aDID) from advertisement AS a LEFT JOIN advertisementzone AS
+		az ON az.aDID = a.aDID
+		WHERE az.zoneID = #{zoneID}
+	</select>
+	<!-- 添加 -->
+	<insert id="insAdver" parameterType="hashmap">
+		insert into advertisement(
+		<include refid="Adver"></include>
+		)
+		values(#{aDName},#{advType},#{imgUrl},#{imgWidth},#{imgHeight},#{aDIntro},#{linkUrl}
+		,#{linkTarget},#{linkAlt},#{priority},#{clicks},#{passed},now())
+	</insert>
+	<select id="insAdment" resultType="int" parameterType="hashmap">
+		insert into advertisementzone(zoneID,aDID)VALUES(#{zoneID},#{aDID})
+	</select>
+	<!-- id查询 -->
+	<select id="selAdverId" resultType="hashmap" parameterType="integer">
+		select * from advertisement where aDID=#{aDID}
+	</select>
+	<!-- 添加广告后添加到广告位，先查询广告id -->
+	<select id="getAdvId" resultType="int" parameterType="hashmap">
+		select aDID from advertisement where aDName=#{aDName} and
+		linkUrl=#{linkUrl} order by aDID desc limit 1
+	</select>
+	<!-- 修改信息 -->
+	<update id="updAdver" parameterType="hashmap">
+		update advertisement set
+		aDName=#{aDName},advType=#{advType},imgWidth=#{imgWidth},imgHeight=#{imgHeight},
+		aDIntro=#{aDIntro},linkUrl=#{linkUrl},linkTarget=#{linkTarget},linkAlt=#{linkAlt},
+		priority=#{priority},passed=#{passed},imgUrl=#{imgUrl},updateTime=now()
+		where aDID=#{aDID}
+	</update>
+	<!-- 批量删除 -->
+	<delete id="deleteAdver" parameterType="java.util.List">
+		delete from advertisement where aDID in
+		<foreach collection="list" index="index" item="aDID" open="("
+			separator="," close=")">
+			#{aDID}
+		</foreach>
+	</delete>
+	<!-- 批量删除中间表 -->
+	<delete id="delADByAdvId" parameterType="java.util.List">
+		delete from advertisementzone where aDID in
+		<foreach collection="list" index="index" item="aDID" open="("
+			separator="," close=")">
+			#{aDID}
+		</foreach>
+	</delete>
+	<!-- 批量审核 -->
+	<update id="updAdver1" parameterType="java.util.List">
+		update advertisement set passed=0 where aDID in
+		<foreach collection="list" index="index" item="aDID" open="("
+			separator="," close=")">
+			#{aDID}
+		</foreach>
+	</update>
+	<!-- 批量审核 -->
+	<update id="updAdver2" parameterType="java.util.List">
+		update advertisement set passed=1 where aDID in
+		<foreach collection="list" index="index" item="aDID" open="("
+			separator="," close=")">
+			#{aDID}
+		</foreach>
+	</update>
+
+	<!-- 前台广告查询 -->
+	<select id="selBanner" parameterType="int" resultType="hashmap">
+		SELECT * from advertisement
+		WHERE aDID in(SELECT aDID FROM advertisementzone WHERE zoneID=#{zoneID})
+		AND passed = 1  ORDER BY priority DESC
+	</select>
+	<select id="selAdzoneListTotal"  resultType="hashmap">
+		select * from adzone where active = 1 and zoneName like '%pc%' 
+	</select>
+	<select id="seltAdver" parameterType="hashmap" resultType="hashmap">
+		select aDID,aDName,priority,clicks,passed from advertisement where
+		aDID in
+		(SELECT aDID FROM advertisementzone where zoneID!=#{zoneID})
+	</select>
+	<select id="selectProductCount" resultType="long" parameterType="hashmap">
+		SELECT
+			count(0)
+		FROM
+			(
+				SELECT
+					id,
+					1 AS type,
+					sumType,
+					pictureUrl,
+					NAME
+				FROM
+					book
+				WHERE
+					state = 0
+				UNION ALL
+					SELECT
+						ondemandId id,
+						2 AS type,
+						isSum sumType,
+						picUrl pictureUrl,
+						NAME
+					FROM
+						ondemand
+					WHERE
+						STATUS != 0
+					AND STATUS !=- 1
+			) a
+			<where>
+			   <if test="type != null and type != ''">
+			      a.type = #{type}
+		       </if>
+		       <if test="name != null and name != ''">
+			       and a.name like "%"#{name}"%"
+		       </if>
+			</where>
+			
+	</select>
+	<select id="selProduct" resultType="hashmap" parameterType="hashmap">
+		SELECT
+			*
+		FROM
+			(
+				SELECT
+					id,
+					1 AS type,
+					sumType,
+					pictureUrl,
+					NAME
+				FROM
+					book
+				WHERE
+					state = 0
+				UNION ALL
+					SELECT
+						ondemandId id,
+						2 AS type,
+						isSum sumType,
+						picUrl pictureUrl,
+						NAME
+					FROM
+						ondemand
+					WHERE
+						STATUS != 0
+					AND STATUS !=- 1
+			) a
+			<where>
+			   <if test="type != null and type != ''">
+			      a.type = #{type}
+		       </if>
+		       <if test="name != null and name != ''">
+			       and a.name like "%"#{name}"%"
+		       </if>
+			</where>
+			limit #{start},#{pageSize}
+	</select>
+	
+</mapper>

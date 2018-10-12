@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="ContentManageDao">
+	<!-- 查询某一栏目下的所有新闻总数 -->
+	<select id="getTotalContentByCatId" resultType="long" parameterType="hashMap">
+		select count(contentId) from commoncontent where isDelete = 0 
+		<if test="catId != null and catId != '' ">
+			and catId = #{catId} 
+		</if>
+		<if test="title != null">
+			and title like "%"#{title}"%" 
+		</if>
+	</select>
+	<!-- 查询某一栏目下的所有新闻 -->
+	<select id="selContentByCatId" parameterType="hashMap" resultType="hashMap">
+		select user.userName,con.contentId,con.catId,con.title,con.subTitle,con.keywords,con.author,con.summary,
+		con.hits,con.picUrl,con.mainContent,con.templateFile,con.createTime,con.updateTime,
+		con.isDelete,con.createUserId,con.textUrl,con.webTitle,con.webDescription,con.wapContent,c.catName
+		from commoncontent con left join userinfo user on user.userId = con.createUserId 
+		left join plate c on con.catId=c.catId
+		where con.isDelete = 0 
+		<if test="catId != null and catId != '' ">
+			and con.catId = #{catId}
+		</if>
+		<if test="title != null">
+			and title like "%"#{title}"%" 
+		</if>
+		ORDER BY contentId DESC LIMIT #{start},#{pageSize}
+	</select>
+	<!-- 根据ID查询内容信息 -->
+	<select id="selectContentById" parameterType="int" resultType="hashmap">
+		select * from commoncontent where contentId=#{contentId}
+	</select>
+	<!--删除内容管理条目（假删除，更新isDelete的状态） -->
+	<update id="updateContentStaus" parameterType="Integer">
+		update commoncontent set isDelete=1
+		where contentId in
+		<foreach collection="list" open="(" separator="," close=")" item="item">#{item}</foreach>
+	</update>
+	<!--添加新闻 -->
+	<insert id="addNewsInfo" parameterType="hashmap"
+		useGeneratedKeys="true" keyProperty="contentId">
+		INSERT INTO commoncontent
+		(catId,title,subTitle,keywords,author,summary,hits,picUrl,mainContent,
+		templateFile,createTime,updateTime,isDelete,createUserId,textUrl,webTitle,webDescription,wapContent)
+		VALUES
+		(#{catId},#{title},#{subTitle},#{keywords},#{author},#{summary},0,#{picUrl},#{mainContent},#{templateFile},
+		#{createTime},#{updateTime},0,#{createUserId},#{textUrl},#{webTitle},#{webDescription},#{wapContent})
+	</insert>
+	<!-- 修改内容信息 -->
+	<update id="updateContent" parameterType="hashMap">
+		update commoncontent
+		<set>
+			subTitle=#{subTitle},
+			author=#{author},
+			summary=#{summary},
+			picUrl=#{picUrl},
+			createUserId=#{createUserId},
+			textUrl=#{textUrl},
+			keywords=#{keywords},
+			webTitle=#{webTitle},
+			webDescription=#{webDescription},
+			<if test="catId!=null and catId!='' ">catId=#{catId},</if>
+			<if test="title!=null and title!='' ">title=#{title},</if>
+			<if test="mainContent!=null and mainContent!='' ">mainContent=#{mainContent},</if>
+			<if test="templateFile!=null and templateFile!='' ">templateFile=#{templateFile},</if>
+			<if test="updateTime!=null and updateTime!='' ">updateTime=#{updateTime},</if>
+			<if test="wapContent!=null and wapContent!='' ">wapContent=#{wapContent}</if>
+		</set>
+		where contentId=#{contentId}
+	</update>
+	<!-- 查询内容回收站列表页 -->
+	<select id="selectContentRubbishList" resultType="hashmap" parameterType="hashmap">
+		select user.userName,con.contentId,con.catId,con.title,con.subTitle,con.keywords,con.author,con.summary,
+		con.hits,con.picUrl,con.mainContent,con.templateFile,con.createTime,con.updateTime,
+		con.isDelete,con.createUserId,con.textUrl,con.webTitle,con.webDescription,con.wapContent,c.catName
+		from commoncontent con left join userinfo user on user.userId = con.createUserId 
+		left join plate c on con.catId=c.catId
+		where con.isDelete = 1 
+		<if test="title != null">
+			and title like "%"#{title}"%" 
+		</if>
+		ORDER BY con.contentId DESC LIMIT #{start},#{pageSize}
+	</select>
+	<!-- 获取回收站列表总条数 -->
+	<select id="countContentRubbish" resultType="long" parameterType="hashMap">
+		select count(contentId) from commoncontent where isDelete=1
+		<if test="title != null">
+			and title like "%"#{title}"%" 
+		</if>
+	</select>
+	<!-- 彻底删除回收站中的内容信息 -->
+	<delete id="delRubbishInfo" parameterType="java.util.List">
+		delete from commoncontent where contentId in
+		<foreach collection="list" item="content" open="(" separator="," close=")">
+			#{content}
+		</foreach>
+	</delete>
+
+	<!-- 从回收站中的还原选择 -->
+	<update id="restoreContent" parameterType="java.util.List">
+		UPDATE commoncontent set isDelete=0 where contentId in
+		<foreach collection="list" item="content" open="(" separator="," close=")">
+			#{content}
+		</foreach>
+	</update>
+</mapper>

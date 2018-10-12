@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="buyJisongDao">
+	<sql id="sql_where">
+		<if test="name!=null and name!=''">
+			and name like "%"#{name}"%"
+		</if>
+		<if test="status!=null and status==1 and status!=''">
+			and startTime &lt; now() and endTime &gt; now() and isFree=1
+		</if>
+		<if test="status!=null and status==0 and status!=''">
+			and startTime &gt; now() and isFree=1
+		</if>
+		<if test="status!=null and status==2 and status!=''">
+			and endTime &lt; now() and isFree=1
+		</if>
+		<if test="status!=null and status==4 and status!=''">
+			and isFree=0
+		</if>
+	</sql>
+	<!-- 查询count -->
+	<select id="selectCount" resultType="long" parameterType="hashmap">
+		select count(0) from buyJisong
+		where 1=1
+		<include refid="sql_where"></include>
+	</select>
+	<!-- 查询买赠活动列表 -->
+	<select id="selectContent" resultType="hashmap" parameterType="hashmap">
+		select id,name,remark,date_format(startTime,'%Y-%m-%d %T') startTime,date_format(endTime,'%Y-%m-%d %T') endTime,isFree,
+		case when (endTime &lt; NOW()) then 2 when (endTime &gt; NOW() and startTime &lt; NOW()) then 1 when ( startTime &gt; NOW() ) then 0  END `status`
+		 from buyJisong
+		where 1=1
+		<include refid="sql_where"></include>
+		order by startTime desc
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 新增 -->
+	<insert id="addBuyJisong" parameterType="hashmap" useGeneratedKeys="true" keyProperty="id">
+		insert into buyJisong (name,startTime,endTime,remark,isFree)
+		values(#{name},#{startTime},#{endTime},#{remark},#{isFree})
+	</insert>
+	<update id="editBuyJisong" parameterType="hashMap">
+		update buyJisong set name=#{name},startTime=#{startTime},
+		endTime=#{endTime},remark=#{remark},isFree=#{isFree}
+		where id=#{id}
+	</update>
+	<select id="selById" parameterType="string" resultType="hashmap">
+		select id,name,remark,date_format(startTime,'%Y-%m-%d %T') startTime,date_format(endTime,'%Y-%m-%d %T') endTime,isFree
+		from buyJisong
+		where id=#{id}
+	</select>
+	<delete id="delete" parameterType="hashMap">
+		delete from buyJisong where Id=#{id}
+	</delete>
+	<!-- 添加关联商品中间表 -->
+	<insert id="addBuyJingProduct" parameterType="hashmap">
+		insert into buyjisong_product (buyJisongId,productId,type,productType)
+		values 
+		<foreach collection="list" index="index" separator="," item="item">
+			(#{item.buyJisongId},#{item.productId},#{item.type},#{item.productType})
+		</foreach>
+	</insert>
+	<select id="selBuyProList" parameterType="string" resultType="hashmap">
+		select * from (select b.id,b.name,b.paperPrice price,p.productType as type,b.picture url,p.buyJisongId,p.type as types from book b
+		JOIN 
+		buyjisong_product p ON b.id=p.productId
+		AND p.productType in (1,2)
+		UNION ALL
+		select o.ondemandId as id,o.name,ifnull(o.presentPrice,originalPrice) price,case when o.classtype=0 then 3 else 4 end as type,o.picUrl url,sp.buyJisongId,sp.type as types from ondemand o
+		JOIN 
+		buyjisong_product sp ON o.ondemandId=sp.productId
+		AND sp.productType IN(3,4)) as a
+		where a.buyJisongId = #{id}
+	</select>
+	<delete id="delproduct" parameterType="hashmap">
+		delete from buyjisong_product where buyJisongId=#{id}
+	</delete>
+	<!-- 查询买赠商品count -->
+	<select id="selProductCount" resultType="long" parameterType="hashmap">
+		select count(0) from (
+			select id ,1 as type,name from book where state=0 and stock > 0 and sumType=0
+			UNION ALL
+			select id ,1,name from book where state=0 and stock>0 and isSalePaper=1 and sumType!=0
+			UNION ALL
+			select DISTINCT b.id ,2,name from book b  JOIN publishingplan p on b.period = p.id  JOIN documentfinal d on d.IssueOfPublication=p.id where b.sumType=0
+			UNION ALL
+			select id ,2,name from book where state=0 and stock>0 and isSaleEbook=1 and sumType!=0
+			UNION ALL
+			select ondemandId,case classtype when 0 then 3 else 4 end,name from ondemand where status != 0 and status != -1
+		) as a
+		where 1=1
+		<if test="list!=null and not list.isEmpty()">
+			and a.type in
+			<foreach collection="list" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+		<if test="name != null and name != ''">
+			and a.name like "%"#{name}"%"
+		</if>
+	</select>
+	<!-- 查询买赠商品 -->
+	<select id="selProduct" resultType="hashmap" parameterType="hashmap">
+		select * from (
+			select id,name,paperPrice price,1 as type,picture url ,sumType,`year` from book where state=0 and stock > 0 and sumType=0
+			UNION ALL
+			select id,name,paperPrice price,1,picture url ,sumType,`year` from book where state=0 and stock>0 and isSalePaper=1 and sumType!=0
+			UNION ALL
+			select DISTINCT b.id,name,ebookPrice price,2,picture url ,sumType,b.`year` from book b  JOIN publishingplan p on b.period = p.id  JOIN documentfinal d on d.IssueOfPublication=p.id where b.sumType=0
+			UNION ALL
+			select id,name,ebookPrice price,2,picture url ,sumType,`year` from book where state=0 and stock>0 and isSaleEbook=1 and sumType!=0
+			UNION ALL
+			select ondemandId as id,name,ifnull(presentPrice,originalPrice) price,case classtype when 0 then 3 else 4 end,picUrl url,isSum,'' from ondemand where status != 0 and status != -1
+		) as a
+		where 1=1  
+		<if test="list!=null and  not list.isEmpty()">
+			and a.type in
+			<foreach collection="list" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+		<if test="name != null and name != ''">
+			and a.name like "%"#{name}"%"
+		</if>
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 查询所有已关联的商品 -->
+	<select id="findByIdsAll" resultType="hashmap" parameterType="hashmap">
+		select * from (
+			select id,name,paperPrice price,type,picture url from book
+			<where>
+				<if test="strs1!=null and strs1!='' and strs2!=null and strs2!=''">
+					id in 
+					<foreach collection="list1" index="index" separator="," item="item" open="(" close=")">
+						#{item}
+					</foreach>
+				</if>
+			</where>
+			UNION ALL
+			select ondemandId as id,name,ifnull(presentPrice,originalPrice) price,4 as type,picUrl url from ondemand
+			<where>
+				<if test="strs1!=null and strs1!='' and strs2!=null and strs2!=''">
+					ondemandId in 
+					<foreach collection="list2" index="index" separator="," item="item" open="(" close=")">
+						#{item}
+					</foreach>
+				</if>
+			</where>
+		) as a
+		where 1=1
+		<if test="(strs1!=null and strs1!='') and (strs2==null or strs2=='')">
+			and a.id in 
+			<foreach collection="list1" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+		<if test="(strs2!=null and strs2!='') and (strs1==null or strs1=='')">
+			and a.id in 
+			<foreach collection="list2" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+		<if test="(strs1!=null and strs1!='') and (strs2==null or strs2=='')">
+			and a.type != 4
+		</if>
+		<if test="(strs2!=null and strs2!='') and (strs1==null or strs1=='')">
+			and a.type = 4
+		</if>
+	</select>
+</mapper>

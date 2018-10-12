@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="ColumnManageDao">
+	<!-- 查询所有菜单数据列表 -->
+	<select id="selectColumnList" resultType="hashmap">
+		select * from plate order by orderIndex
+	</select>
+	<!-- 添加之前查询最大orderIndex -->
+	<select id="getMaxOrderIndex" resultType="hashmap">
+		select IFNULL(max(orderIndex),0) as orderIndex from plate
+	</select>
+	<!-- 添加之前先查询栏目名称是否存在 -->
+	<select id="getCatIdByName" resultType="hashmap" parameterType="hashmap">
+		select catId from plate where catName=#{catName} 
+		<if test="catId != null and catId != '' ">and catId != #{catId}</if>
+	</select>
+	<!-- 添加栏目基本信息 -->
+	<insert id="addColumnInformation" parameterType="hashmap" useGeneratedKeys="true" keyProperty="catId">
+		INSERT INTO plate(parentId,catName,catAlias,titles,keyWord,description,orderIndex,
+		catOpenType,catType,linkUrl,IsRec,IsShowOnMenu,IsShowOnPath,defaultTemplateFile,ListView,ItemView,imgUrl)
+		VALUES(#{parentId},#{catName},#{catAlias},#{titles},#{keyWord},#{description},#{orderIndex},
+		#{catOpenType},#{catType},#{linkUrl},#{IsRec},#{IsShowOnMenu},#{IsShowOnPath},#{DefaultView},#{ListView},#{ItemView},#{imgUrl})
+	</insert>
+	<!-- 修改栏目基本信息 -->
+	<update id="updateColumn" parameterType="hashMap">
+		update plate
+		<set>
+			catName=#{catName},
+			catAlias=#{catAlias},
+			titles=#{titles},
+			catType=#{catType},
+			description=#{description},
+			catOpenType=#{catOpenType},
+			linkUrl=#{linkUrl},
+			IsRec=#{IsRec},
+			IsShowOnMenu=#{IsShowOnMenu},
+			IsShowOnPath=#{IsShowOnPath},
+			imgUrl=#{imgUrl},
+			<if test="parentId!=null and parentId!='' ">parentId=#{parentId},</if>
+			<if test="DefaultView!=null and DefaultView!='' ">defaultTemplateFile=#{DefaultView},</if>
+			<if test="DefaultView==null or DefaultView=='' ">defaultTemplateFile=null,</if>
+			<if test="ListView!=null and ListView!='' ">ListView=#{ListView},</if>
+			<if test="ListView==null or ListView=='' ">ListView=null,</if>
+			<if test="ItemView!=null and ItemView!='' ">ItemView=#{ItemView}</if>
+			<if test="ItemView==null or ItemView=='' ">ItemView=null</if>
+		</set>
+		where catId = #{catId}
+	</update>
+	<!-- 删除栏目 -->
+	<delete id="delColumnInfo" parameterType="Integer">
+		delete from plate where catId=#{catId}
+	</delete>
+	<!-- 根据ID查询栏目信息 -->
+	<select id="selectColumnById" parameterType="int" resultType="hashmap">
+		select * from plate where catId=#{catId}
+	</select>
+	<!-- 移动栏目，更改parentId -->
+	<update id="updateParentId" parameterType="hashMap">
+		update plate
+		<set>
+			<if test="parentId!=null and parentId!='' ">parentId=#{parentId},</if>
+		</set>
+		where catId=#{catId}
+	</update>
+	<!--排序 更改orderIndex -->
+	<update id="updateOrder" parameterType="hashMap">
+		update plate as q1 join plate as q2 on (q1.catId=#{catId} and q2.catId = #{parentId})
+		set q1.orderIndex = q2.orderIndex,q2.orderIndex=q1.orderIndex;
+	</update>
+	<select id="selColumnLists" resultType="hashmap">
+		select catId , catName from plate;
+	</select>
+	<select id="selColumn" resultType="hashmap" parameterType="String">
+		SELECT c.*,p.catName FROM commoncontent c , plate p where c.catId = p.catId and c.catId = #{catId};
+	</select>
+</mapper>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="carTagDao">
+	<!-- 通过id查询单个标签 -->
+	<select id="selectCarTagById" parameterType="java.lang.Integer" resultType="map">
+		select * from car_tag where id = #{id}
+	</select>
+	<!-- 添加标签 -->
+	<insert id="addCarTag" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+		insert into car_tag (type, code, name, status, isDel)
+		values (#{type},#{code}, #{name}, #{status}, 0)
+	</insert>
+	<!-- 修改标签 -->
+	<update id="updateCarTag" parameterType="map">
+		update car_tag set type = #{type}, name = #{name}, status = #{status}
+		where id = #{id}
+	</update>
+	<!-- 总记录数 -->
+	<select id="getCount" resultType="long" parameterType="map">
+		select count(id) from car_tag where isDel = 0
+	</select>
+	<!-- 列表分页数据 -->
+	<select id="getCarTagList" resultType="map" parameterType="map">
+		SELECT id, code, name, status, times, 
+		case when type = 1 then '品牌' when type = 2 then '车系' when type = 3 then '车型' end type 
+		FROM car_tag WHERE isDel = 0
+		order by id desc limit #{start},#{pageSize}
+	</select>
+	<!-- 删除标签，修改标签的删除状态为1 -->
+	<update id="deleteCarTag" parameterType="int">
+		update car_tag set isDel = 1 where id = #{id}
+	</update>
+	<!-- 修改标签的启用禁用状态 -->
+	<update id="modifyStatus" parameterType="map">
+		update car_tag set status = #{status} where id = #{id}
+	</update>
+	<!-- 查询最后一个编号 -->
+	<select id="getLastCode" resultType="String">
+		select code from car_tag order by id desc limit 1
+	</select>
+</mapper>

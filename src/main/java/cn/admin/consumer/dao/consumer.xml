@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="consumerDao">
+
+	<sql id="sql_where">
+		<if test="regBeginTime != null and regBeginTime != ''">
+			and u.registrationDate &gt;= #{regBeginTime}
+		</if>
+		<if test="regEndTime != null and regEndTime != ''">
+			and u.registrationDate &lt;= #{regEndTime}
+		</if>
+		<if test="isFreeze != null and isFreeze != ''">
+			and u.isFreeze=#{isFreeze}
+		</if>
+		<if test="name != null and name != ''">
+			and (u.userName like "%"#{name}"%" or u.realname like "%"#{name}"%" or u.nickName like "%"#{name}"%" or u.telenumber like "%"#{name}"%")
+		</if>
+		<if test="userType!=null and userType!=''">
+			and u.userType=#{userType}
+		</if>
+		<if test="openId !=null and openId != ''">
+			and u.openId=#{openId}
+		</if>
+		<if test="ids!=null and ids!=''">
+			and u.userId in 
+			<foreach collection="id" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+	</sql>
+	<!-- 查询用户列表 -->
+	<select id="selConsumerList" resultType="hashmap" parameterType="hashmap">
+		<!-- select u.userId,u.userName,u.telenumber,u.email,u.userCode,u.realname,date_format(u.registrationDate,'%Y-%m-%d %T') registrationDate,
+		u.userType,u.IsRecommend,u.nickName,ua.accountJF,ua.balance,
+		case when u.sex = 0 then '男' when u.sex = 1 then '女' ELSE '-' end sex,
+		case when u.isFreeze = 0 then '禁用' when u.isFreeze = 1 then '启用' end isFreeze,
+		case when u.noPurchaseUser = 2 then '是' when u.noPurchaseUser = 1 then '否' end noPurchaseUser
+		from userinfo u 
+		LEFT JOIN useraccount ua on ua.customerId=u.userId 
+		where 1=1 and u.userType!=0 and u.isDelete!=1 -->
+		select * from (
+			select u.userId as userId , null as openId ,u.userName as userName,u.telenumber as telenumber,u.email as email ,u.userCode as userCode ,u.realname as realname
+			,date_format(u.registrationDate,'%Y-%m-%d %T') as  registrationDate,
+			u.userType as userType ,u.IsRecommend as IsRecommend ,u.nickName as nickName,ua.accountJF as accountJF ,ua.balance as balance,
+			case when u.sex = 0 then '男' when u.sex = 1 then '女' ELSE '-' end sex,
+			case when u.isFreeze = 0 then '禁用' when u.isFreeze = 1 then '启用' end isFreeze,
+			case when u.noPurchaseUser = 2 then '是' when u.noPurchaseUser = 1 then '否' end noPurchaseUser
+			from userinfo u 
+			LEFT JOIN useraccount ua on ua.customerId=u.userId
+			where 1=1 and u.userType!=0 and u.isDelete!=1
+		union all
+			SELECT NULL as userId, w.openId as openId , NULL as userName , NULL as telenumber , NULL as email , null as userCode , null as realname 
+				, null as registrationDate ,1 as userType , null as IsRecommend, w.nickName as nickName 
+				, 0 as accountJF , 0 as balance , '-' as sex ,'启用' as isFreeze , '否' as noPurchaseUser
+				FROM `wechat_userinfo` w where w.userId is NULL
+				) u
+		where 1=1
+		<include refid="sql_where" />
+		<!-- GROUP BY u.userId 
+		ORDER BY u.registrationDate DESC -->
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 用户数量 -->
+	<select id="selConsumerCount" resultType="long" parameterType="hashmap">
+		select count(*) from (
+			select u.userId as userId , null as openId ,u.userName as userName,u.telenumber as telenumber,u.email as email ,u.userCode as userCode ,u.realname as realname
+			,date_format(u.registrationDate,'%Y-%m-%d %T') as  registrationDate,
+			u.userType as userType ,u.IsRecommend as IsRecommend ,u.nickName as nickName,ua.accountJF as accountJF ,ua.balance as balance,
+			case when u.sex = 0 then '男' when u.sex = 1 then '女' ELSE '-' end sex,
+			case when u.isFreeze = 0 then '禁用' when u.isFreeze = 1 then '启用' end isFreeze,
+			case when u.noPurchaseUser = 2 then '是' when u.noPurchaseUser = 1 then '否' end noPurchaseUser
+			from userinfo u 
+			LEFT JOIN useraccount ua on ua.customerId=u.userId
+			where 1=1 and u.userType!=0 and u.isDelete!=1
+		union all
+			SELECT NULL as userId, w.openId as openId , NULL as userName , NULL as telenumber , NULL as email , null as userCode , null as realname 
+				, null as registrationDate ,1 as userType , null as IsRecommend, w.nickName as nickName 
+				, 0 as accountJF , 0 as balance , '-' as sex ,'启用' as isFreeze , '否' as noPurchaseUser
+				FROM `wechat_userinfo` w where w.userId is NULL
+				) u
+		where 1=1
+		<include refid="sql_where" />
+	</select>
+	<!-- 删除用户 -->
+	<update id="deletes" parameterType="hashmap">
+		update userinfo set isDelete=1 where userId=#{userId}
+	</update>
+	<!-- 批量删除 -->
+	<update id="deleteids" parameterType="hashmap">
+		update userinfo set isDelete=1 
+		where userId in 
+		<foreach collection="id" index="index" separator="," item="item" open="(" close=")">
+			#{item}
+		</foreach>
+	</update>
+	<!-- 查询扩展信息 -->
+	<select id="selExtends" resultType="hashmap" parameterType="hashmap">
+		select * from writer_extendmsg where userId=#{_parameter}
+	</select>
+	<!-- 添加扩展信息 -->
+	<insert id="addExtends" parameterType="hashmap">
+		insert into writer_extendmsg (userId,fansNum,rewardNum,vipGrade) values(#{userId2},#{fansNum},#{rewardNum},#{vipGrade})
+	</insert>
+	<!-- 修改扩展信息 -->
+	<update id="upExtends" parameterType="hashmap">
+		update writer_extendmsg set fansNum=#{fansNum},rewardNum=#{rewardNum},vipGrade=#{vipGrade} where id=#{id}
+	</update>
+	<!-- 查询用户信息 -->
+	<select id="selectUserInfoById" resultType="hashmap" parameterType="String">
+		select u.userId,u.sex,DATE_FORMAT(u.birthDate,'%Y-%m-%d') birthDate,
+		u.telenumber,DATE_FORMAT(u.registrationDate,'%Y-%m-%d') registrationDate,u.education,u.industry,
+		u.occupation,u.synopsis,u.userPwd,u.nickName,ua.accountJF,ua.balance,u.IDpic
+		from userinfo u
+		left join useraccount ua on ua.customerId=u.userId
+		where u.userId=#{_parameter}
+	</select>
+	<!-- 修改用户信息 -->
+	<update id="editUser" parameterType="hashmap">
+		update userinfo set sex=#{sex},birthDate=#{birthDate},telenumber=#{telenumber},registrationDate=#{registrationDate},education=#{education},realname=#{realname},
+		industry=#{industry},occupation=#{occupation},synopsis=#{synopsis},nickName=#{nickName},documentType=#{documentType},identitynumber=#{identitynumber},
+		opinion=#{opinion},IsRecommend=#{IsRecommend}
+		<if test="isPurchaseUser!=null and isPurchaseUser!=''">
+			,noPurchaseUser=#{isPurchaseUser}
+		</if>
+		<if test="approve!=null and approve!=''">
+			,approve=#{approve}
+		</if>
+		<if test="userType!=null and userType!=''">
+			,userType=#{userType}
+		</if>
+		<if test="userPwd!=null and userPwd!=''">
+			,userPwd=#{userPwd}
+		</if>
+		<if test="userUrl !=null and userUrl !=''">
+			,userUrl=#{userUrl}
+		</if>
+		where userId=#{userId}
+	</update>
+	<!-- 查询用户密码 -->
+	<select id="selUserPwd" resultType="String" parameterType="hashmap">
+		select userPwd from userinfo where userId=#{userId}
+	</select>
+	<!-- 修改积分，余额 -->
+	<update id="updateBalance" parameterType="hashmap">
+		update useraccount set accountJF=#{accountJF},balance=#{balance} where customerId=#{userId}
+	</update>
+	<!-- 修改专家扩展信息 -->
+	<update id="updateMsg" parameterType="hashmap">
+		update writer_extendmsg set vipGrade=#{vipGrade},rewardNum=#{rewardNum}
+		<if test="questionPrice !=null">
+			,questionPrice=#{questionPrice}
+		</if>
+		 where userId=#{userId}
+	</update>
+	<!-- 查询余额 -->
+	<select id="selBalance" resultType="hashmap" parameterType="String">
+		select balance from useraccount where customerId=#{_parameter}
+	</select>
+	<!-- 查询消费记录 -->
+	<select id="selAccountLog" resultType="hashmap" parameterType="String">
+		select userId,money,balance,date_format(time,'%Y-%m-%d %h:%i:%s') time,remark
+		from useraccountlog where userId=#{_parameter}
+	</select>
+	<!-- 查询用户的打赏记录 -->
+	<select id="findByUserRewardLog" resultType="hashmap" parameterType="String">
+		select date_format(r.inputDate,'%Y-%m-%d %h:%i:%s') inputDate,
+		u.realname,r.money from rewardlog r
+		left join userinfo u on u.userId=r.beRewarding
+		where r.rewardPeople=#{_parameter}
+	</select>
+	<!-- 查询该用户共打赏了多少钱 -->
+	<select id="selSumMoney" resultType="double" parameterType="String">
+		select ifnull(sum(money),0) money from rewardlog where rewardPeople=#{_parameter}
+	</select>
+	<!-- 查询用户评论列表 -->
+	<select id="selectCommenUser" resultType="hashmap" parameterType="String">
+		select c.content,DATE_FORMAT(c.dateTime,'%Y-%m-%d %h:%i:%s') dateTime,
+		CASE commentType WHEN 1 THEN '课程' WHEN 2 THEN '直播' WHEN 3 THEN '杂志' WHEN 4 THEN '营销书院'
+		WHEN 5 THEN '白马营' END commentType,
+		CASE c.commentType WHEN 1 THEN 
+		(SELECT u.realname from ondemand o 
+		LEFT JOIN ondemand_teacher ot on ot.ondemandId=o.ondemandId 
+		LEFT JOIN userinfo u on u.userId=ot.teacherId
+		where o.ondemandId=c.contentId
+		) WHEN 2 THEN 
+		(SELECT u.realname from ondemand o 
+		LEFT JOIN ondemand_teacher ot on ot.ondemandId=o.ondemandId 
+		LEFT JOIN userinfo u on u.userId=ot.teacherId
+		where o.ondemandId=c.contentId
+		) WHEN 4 THEN
+		(SELECT u.realname from ondemand o 
+		LEFT JOIN ondemand_teacher ot on ot.ondemandId=o.ondemandId 
+		LEFT JOIN userinfo u on u.userId=ot.teacherId
+		where o.ondemandId=c.contentId) END teacherName,
+		CASE c.commentType WHEN 1 THEN
+		(SELECT o.name from ondemand o WHERE o.ondemandId=c.contentId)
+		WHEN 2 THEN 
+		(SELECT o.name from ondemand o WHERE o.ondemandId=c.contentId)
+		WHEN 3 THEN
+		(select b.name FROM book b WHERE b.id=c.contentId)
+		WHEN 4 THEN
+		(SELECT o.name from ondemand o WHERE o.ondemandId=c.contentId)
+		WHEN 5 THEN '白马营' END className
+		from `comment` c
+		where c.poster=#{_parameter}
+	</select>
+	<!-- 查询导出数据 -->
+	<select id="selectDownload" resultType="hashmap" parameterType="hashmap">
+		select u.userId,u.userName,u.telenumber,u.email,u.userCode,u.realname,date_format(u.registrationDate,'%Y-%m-%d') registrationDate,
+		u.userType,u.IsRecommend,u.nickName,ua.accountJF,ua.balance,
+		case when u.sex = 0 then '男' when u.sex = 1 then '女' end sex,
+		case when u.isFreeze = 0 then '禁用' when u.isFreeze = 1 then '启用' end isFreeze,
+		case when u.noPurchaseUser = 2 then '是' when u.noPurchaseUser = 1 then '否' end noPurchaseUser
+		from userinfo u 
+		LEFT JOIN useraccount ua on ua.customerId=u.userId 
+		where 1=1 and u.userType!=0 and u.isDelete!=1
+		<include refid="sql_where" />
+		GROUP BY u.userId 
+		ORDER BY u.registrationDate DESC
+	</select>
+	<!-- 查询用户订单 -->
+	<select id="selectUserOrderList" resultType="hashmap" parameterType="String">
+		select orderno,DATE_FORMAT(addtime,'%Y-%m-%d %T') addtime,totalprice,
+		CASE paystatus WHEN 0 THEN '未支付' WHEN 1 THEN '已支付' WHEN 2 THEN '已取消' END paystatus,
+		CASE deliverstatus WHEN 0 THEN '未发货' WHEN 1 THEN '已发货' END deliverstatus,
+		CASE orderstatus WHEN 1 THEN '待支付' WHEN 2 THEN '已支付' WHEN 3 THEN '已发货' WHEN 4 then '已收货' when
+		5 then '已完成' when 6 then '已取消' when 7 then '退款中' END orderstatus
+		from `order` where userId=#{_parameter}
+	</select>
+	<!-- 查询用户积分 -->
+	<select id="selectJF" resultType="hashmap" parameterType="String">
+		select ifnull(accountJF,0) accountJF from useraccount where customerId=#{_parameter}
+	</select>
+	<!-- 积分记录 -->
+	<select id="selectJFlog" resultType="hashmap" parameterType="String">
+		select points,reason,DATE_FORMAT(time,'%Y-%m-%d %T') time,income from pointslog where userId=#{_parameter}
+	</select>
+	<!-- 查询用户提问记录 -->
+	<select id="selectInterlocutionList" resultType="hashmap" parameterType="String">
+		SELECT DATE_FORMAT(i.inputDate,'%Y-%m-%d %T') inputDate,u.realname,
+		i.content,i.money,CASE i.answerState WHEN 0 THEN '已关闭' WHEN 1 THEN '待回答' 
+		WHEN 2 THEN '已回答' END answerState,
+		(SELECT count(a.id) from audit a WHERE a.interlocutionId=i.id) as count
+		 from interlocution i
+		LEFT JOIN userinfo u on u.userId=i.lecturer
+		where i.questioner=#{_parameter}
+	</select>
+	<!-- 提问我得 -->
+	<select id="selectQuestionList" resultType="hashmap" parameterType="String">
+		SELECT DATE_FORMAT(i.inputDate,'%Y-%m-%d %T') inputDate,u.realname,
+		i.content,i.money,CASE i.answerState WHEN 0 THEN '已关闭' WHEN 1 THEN '待回答' 
+		WHEN 2 THEN '已回答' END answerState,
+		(SELECT count(a.id) from audit a WHERE a.interlocutionId=i.id) as count
+		 from interlocution i
+		LEFT JOIN userinfo u on u.userId=i.questioner
+		where i.lecturer=#{_parameter}
+	</select>
+	<!-- 我的旁听 -->
+	<select id="selMyaudit" resultType="hashmap" parameterType="String">
+		select DATE_FORMAT(a.inputTime,'%Y-%m-%d %T') inputTime,u.realname,uu.realname name,
+		i.content,a.price from audit a
+		LEFT JOIN userinfo u on u.userId=a.userId
+		LEFT JOIN interlocution i on i.id=a.interlocutionId
+		LEFT JOIN userinfo uu on uu.userId=i.lecturer
+		where a.userId=#{_parameter}
+	</select>
+	<!-- 旁听我的 -->
+	<select id="selAuditMy" resultType="hashmap" parameterType="String">
+		select DATE_FORMAT(a.inputTime,'%Y-%m-%d %T') inputTime,u.realname,uu.realname name,
+		i.content,a.price from audit a
+		LEFT JOIN userinfo u on u.userId=a.userId
+		LEFT JOIN interlocution i on i.id=a.interlocutionId
+		LEFT JOIN userinfo uu on uu.userId=i.lecturer
+		where i.lecturer=#{_parameter}
+	</select>
+	<select id="selectUserType" resultType="String" parameterType="hashmap">
+		select userType from userinfo where userId=#{_parameter}
+	</select>
+	<!-- 查询订单 -->
+	<select id="selOrderList" parameterType="hashmap" resultType="hashmap">
+		select o.id orderId,IFNULL(p.id,0) payLogId,o.orderno,o.totalprice,IFNULL(o.postage,0) postage,
+		IFNULL(p.price,0) payprice,o.deliverstatus,
+		o.orderstatus,o.paystatus,(select count(0) from orderitem oi where oi.orderId=o.id) itemCount,
+		(select IFNULL(count(0),0) isHasInvoice from invoice where orderId=o.id and deliveryStatus!=1) isHasInvoice
+		from `order` o 
+		LEFT join wechat_userinfo w on w.openId=o.openId
+		LEFT JOIN paylog p on p.sourceId=o.id and p.payer=o.userId and p.orderNo=o.orderno
+		where 1 = 1
+		<if test="userId != null and userId != '' and userId != 0">
+			and o.userId=#{userId}
+		</if>
+		<if test="openId != null and openId != ''">
+			and o.openId=#{openId}
+		</if>
+		<if test="orderId!=null and orderId!=''">
+			and o.id=#{orderId}
+		</if>
+		<if test="orderStatus!=-1">
+			and o.orderstatus=#{orderStatus}
+		</if>
+		ORDER BY o.addtime desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 查询订单数量 -->
+	<select id="selOrderCount" parameterType="hashmap" resultType="long">
+		select count(0) from `order` o
+		LEFT join wechat_userinfo w on w.openId=o.openId
+		 where 1 = 1
+		<if test="userId != null and userId != '' and userId != 0">
+			and o.userId=#{userId}
+		</if>
+		<if test="openId != null and openId != ''">
+			and o.openId=#{openId}
+		</if>
+		<if test="orderStatus!=-1">
+			and orderstatus=#{orderStatus}
+		</if>
+	</select>
+	<!-- 查询历史订单地址数量 -->
+	<select id="selOrderAddressCount" parameterType="hashmap" resultType="long">
+		SELECT count(0)
+		FROM `deliveraddress` ad 
+		where  ad.userId=#{userId} or ad.openId=#{openId}
+	</select>
+	<!-- 查询历史订单地址数据 -->
+	<select id="selOrderAddressList" parameterType="hashmap" resultType="hashmap">
+		SELECT ad.receiver , ad.phone , ad.province , ad.city , ad.county , ad.detailedAddress , ad.addTime 
+		FROM `deliveraddress` ad 
+		where  ad.userId=#{userId} or ad.openId=#{openId}
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+</mapper>

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="linkDao">
+	<!-- sql块 -->
+	<sql id="link">
+		LinkName,LinkUrl,LinkLogo,Description,GroupName,TelePhone,InputDate
+	</sql>
+	<!-- 查询所有 -->
+	<select id="selLink" resultType="hashmap" parameterType="hashmap">
+		select * from friendlinks
+		where 1=1
+		<if test="LinkName != null and LinkName != ''">
+			and LinkName like "%"#{LinkName}"%"
+		</if>
+		order by Id desc 
+		<if test="pageSize != null and pageSize != 0 and pageSize != ''">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<select id="countLink" resultType="long">
+		select count(*) from friendlinks
+	</select>
+	<!-- 添加 -->
+	<insert id="inseLink" parameterType="hashmap">
+		insert into friendlinks(LinkName,LinkUrl,Description,TelePhone,InputDate) 
+		values(#{LinkName},#{LinkUrl},#{Description},#{TelePhone},NOW())
+	</insert>
+	<!-- 删除单个 -->
+	<delete id="deleteLinkId" parameterType="integer">
+		delete from friendlinks where Id=#{Id}
+	</delete>
+	<delete id="delLinkId" parameterType="java.util.List">
+		delete from friendlinks where Id in 
+    	<foreach collection="list" index="index" item="LinkId" open="(" separator="," close=")">
+    		#{Id}
+    	</foreach>
+	</delete>
+	<!-- 批量审核 -->
+	<update id="updLinkId" parameterType="java.util.List">
+		update friendlinks set Status=0 where Id in 
+		<foreach collection="list" index="index" item="LinkId" open="(" separator="," close=")">
+    		#{Id}
+    	</foreach>
+	</update>
+	<!-- 批量审核 -->
+	<update id="updLinkId2" parameterType="java.util.List">
+		update friendlinks set Status=1 where Id in 
+		<foreach collection="list" index="index" item="LinkId" open="(" separator="," close=")">
+    		#{Id}
+    	</foreach>
+	</update>	
+	<!-- 通过id查询 -->
+	<select id="selId" parameterType="integer" resultType="hashmap">
+		select * from friendlinks where Id=#{Id}
+	</select>
+	<!--修改友情链接 -->
+	<update id="update">
+		update friendlinks set LinkName=#{LinkName},LinkUrl=#{LinkUrl},Description=#{Description},
+		TelePhone=#{TelePhone} where Id=#{Id}
+	</update>
+</mapper>

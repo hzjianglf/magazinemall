@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="discountDao">
+	
+	<sql id="sql_where">
+		<if test="name!=null and name!='' ">
+			and name like "%"#{name}"%"  
+		</if>
+		<if test="type!=null and type!='' and type==0">
+			and date_format(now(),"%Y-%m-%d") <![CDATA[<]]> date_format(startTime,"%Y-%m-%d")
+		</if>
+		<if test="type!=null and type!='' and type==1">
+			and date_format(startTime,"%Y-%m-%d") <![CDATA[<]]> date_format(now(),"%Y-%m-%d") and date_format(now(),"%Y-%m-%d") <![CDATA[<]]> date_format(endTime,"%Y-%m-%d")
+		</if>
+		<if test="type!=null and type!='' and type==2">
+			and date_format(now(),"%Y-%m-%d") <![CDATA[>]]> date_format(endTime,"%Y-%m-%d")
+		</if>
+	</sql>
+	<!-- 查询限时折扣列表 -->
+	<select id="selDiscountList" resultType="hashmap" parameterType="hashmap">
+		select d.id,d.name,date_format(d.startTime,'%Y-%m-%d %T') startTime,date_format(d.endTime,'%Y-%m-%d %T') endTime,d.lowerlimit,d.upperlimit,
+		date_format(d.inputDate,'%Y-%m-%d %T') inputDate,u.realname,d.`status` status
+		from discount d
+		left join userinfo u on u.userId=d.userId
+		where 1=1
+		<include refid="sql_where"></include> 
+		order by d.inputDate desc
+		<if test="start!=null and start!='' and pageSize!=null and pageSize!=''">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 查询限时折扣count -->
+	<select id="selDiscountCount" resultType="long" parameterType="hashmap">
+		select count(0) from discount d
+		left join userinfo u on u.userId=d.userId
+		where 1=1
+		<include refid="sql_where"></include> 
+	</select>
+	<!-- 通过id查询活动 -->
+	<select id="findDisById" resultType="hashmap" parameterType="hashmap">
+		select id,name,date_format(startTime,'%Y-%m-%d %T') startTime,date_format(endTime,'%Y-%m-%d %T') endTime,date_format(inputDate,'%Y-%m-%d %T') inputDate, status
+		from discount where id=#{id}
+	</select>
+	<!-- 添加活动 -->
+	<insert id="insDiscount" parameterType="hashmap" useGeneratedKeys="true" keyProperty="id">
+		insert into discount(name,startTime,endTime,lowerlimit,upperlimit,userId,inputDate,status) 
+		VALUES (#{name},#{startTime},#{endTime},#{lowerlimit},#{upperlimit},#{userId},now(),#{status});
+	</insert>
+	<!-- 修改活动 -->
+	<update id="upDiscount" parameterType="hashmap">
+		update discount set
+		<if test="name != null and name != ''">
+			name = #{name},
+		</if>
+		<if test="startTime != null and startTime != ''">
+			startTime = #{startTime},
+		</if>
+		<if test="endTime != null and endTime != ''">
+			endTime = #{endTime},
+		</if>
+		<if test="lowerlimit != null and lowerlimit != ''">
+			lowerlimit = #{lowerlimit},
+		</if>
+		<if test="upperlimit != null and upperlimit != ''">
+			upperlimit = #{upperlimit},
+		</if>
+		<if test="userId != null and userId != ''">
+			userId = #{userId},
+		</if>
+		<if test="status != null and status != ''">
+			status = #{status}
+		</if>
+		where id = #{id}
+	</update>
+	<!-- 删除活动 -->
+	<delete id="delDiscount" parameterType="hashmap">
+		delete from discount where id = #{id}
+	</delete>
+</mapper>

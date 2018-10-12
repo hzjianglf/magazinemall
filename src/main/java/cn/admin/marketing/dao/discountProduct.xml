@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="discountProductDao">
+	<!-- 通过活动id查询列表 -->
+	<select id="findDisProById" resultType="hashmap" parameterType="hashmap">
+		SELECT * from (
+				select dp.id, dp.disID,dp.productType
+				,dp.discount,dp.productId,bo.`name`
+				, bo.paperPrice as price , bo.picture as url 
+				from discount_product as dp , book as bo 
+				where  dp.productType in (1,2) and bo.id = dp.productId
+				UNION ALL
+				select dp.id, dp.disID,dp.productType,
+				dp.discount,dp.productId,omd.`name` 
+				, omd.presentPrice as price , omd.picUrl as url 
+				from discount_product as dp , ondemand omd 
+				where  dp.productType in (3,4) and omd.ondemandId = dp.productId
+				) as disPro
+		where disPro.disID=#{id}
+		ORDER BY disPro.id ASC
+	</select>
+	<!-- 添加活动 -->
+	<insert id="insDiscountPro" parameterType="hashmap">
+		insert into discount_product(disID,productType,productId,discount,price) 
+		VALUES (#{disID},#{productType},#{productId},#{discount},#{price});
+	</insert>
+	<!-- 删除活动 -->
+	<delete id="delDiscountPro" parameterType="hashmap">
+		delete from discount_product where disID = #{id}
+	</delete>
+</mapper>

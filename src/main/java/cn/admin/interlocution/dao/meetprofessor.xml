@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="meetDao">
+	
+	
+	
+	
+	
+	<!-- 查询答疑count -->
+	<select id="selectCount" resultType="long" parameterType="hashmap">
+		select count(0) from interlocution i
+		where 1=1 and logType=1
+	</select>
+	<!-- 查询答疑列表 -->
+	<select id="selectList" resultType="hashmap" parameterType="hashmap">
+		select i.id,i.content,i.meetType,i.money,date_format(i.inputDate,'%Y-%m-%d %T') inputDate,i.lecturer,
+		u.realname,l.name from interlocution i
+		left join userinfo u on u.userId=i.lecturer
+		left join labels l on l.id=i.meetType
+		where 1=1 and logType=1
+		order by i.inputDate desc
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 详情 -->
+	<select id="findById" resultType="hashmap" parameterType="String">
+		select i.id,i.content,i.meetType,i.money,date_format(i.inputDate,'%Y-%m-%d %T') inputDate,i.lecturer,i.answer,i.answertype,i.musicurl,
+		u.realname,l.name from interlocution i
+		left join userinfo u on u.userId=i.lecturer
+		left join labels l on l.id=i.meetType
+		where 1=1 and logType=1 and i.id=#{_parameter}
+	</select>
+	<!-- 新增 -->
+	<insert id="addMeet" parameterType="hashmap">
+		insert into interlocution (logType,content<if test="teacher!=null and teacher!=''">,lecturer</if>,meetType,answertype,answer,money,inputDate,musicurl,answerState,questionState,status)
+		values (1,#{content}<if test="teacher!=null and teacher!=''">,#{teacher}</if>,#{type},#{answertype},#{answer},#{price},now(),#{musicurl},2,1,1)
+	</insert>
+	<!-- 修改 -->
+	<update id="updateMeet" parameterType="hashmap">
+		update interlocution set content=#{content}<if test="teacher!=null and teacher!=''">,lecturer=#{teacher}</if>,meetType=#{type},answertype=#{answertype},answer=#{answer},
+		money=#{price},musicurl=#{musicurl} where id=#{id}
+	</update>
+	<!-- 删除 -->
+	<delete id="delteMeet" parameterType="hashmap">
+		delete from interlocution where id=#{id}
+	</delete>
+	<!-- 查询所有专家 -->
+	<select id="selectTeacherAll" resultType="hashmap">
+		select userId,ifnull(realname,nickName) name from userinfo where userType=2 and isFreeze=1 and isDelete=0 and approve=1
+	</select>
+	<!-- 查询答疑分类 -->
+	<select id="selectlabels" resultType="hashmap">
+		select * from labels where classification='专家答疑' and status=1
+	</select>
+</mapper>

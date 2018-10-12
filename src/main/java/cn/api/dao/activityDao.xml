@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.dao.activityDao">
+	<!-- ******************************************买即送************************************************* -->
+	<!-- 查询购买商品满足的买即送活动列表 1:纸质期刊 2:电子期刊 3:点播课程 4:直播课程 5:商品    -->
+	<select id="selBuyjisongList" parameterType="hashmap" resultType="hashmap">
+		SELECT bs.* 
+		FROM buyjisong bs
+		JOIN buyjisong_product bd ON bs.id=bd.buyJisongId
+		<choose>
+			<when test="type==1">
+				JOIN book b ON b.id=bd.productId
+				WHERE b.isSalePaper=1
+			</when>
+			<when test="type==2">
+				JOIN book b ON b.id=bd.productId
+				WHERE b.isSaleEbook=1
+			</when>
+			<when test="type==3">
+				JOIN ondemand d ON d.ondemandId=bd.productId
+				WHERE d.classtype=0
+			</when>
+			<when test="type==4">
+				JOIN ondemand d ON d.ondemandId=bd.productId
+				WHERE d.classtype=1
+			</when>
+			<otherwise>
+				 
+			</otherwise>
+		</choose>
+		AND bd.type=1
+		AND <![CDATA[ bs.endTime>NOW() ]]>
+		AND <![CDATA[ bs.startTime<=NOW() ]]>
+		AND bs.isFree=1
+		AND bd.productId=#{id}
+		AND bd.productType=#{type}
+		GROUP BY bs.id
+		ORDER BY bs.id DESC
+	</select>
+	
+	<!-- 根据活动Id查询赠送的商品列表-->
+	<select id="selZsListById" parameterType="hashmap" resultType="hashmap">
+		SELECT * FROM(
+			SELECT b.id AS productid,b.`name` AS productname,b.picture AS productpic,b.paperPrice AS price,bd.productType
+			FROM buyjisong bs
+			JOIN buyjisong_product bd ON bs.id=bd.buyJisongId
+			JOIN book b ON b.id=bd.productId
+			WHERE bd.type=2 AND bd.productType IN(1,2)
+			<if test="id!=null and id!=''">
+				AND bs.id=#{id}
+			</if>
+			<if test="not idList.isEmpty()">
+				AND bs.id IN
+				<foreach collection="idList" item="item" open="(" separator="," close=")">
+					#{item}
+				</foreach>
+			</if>
+			UNION ALL
+			SELECT d.ondemandId,d.`name`,d.picUrl,presentPrice,bd.productType
+			FROM buyjisong bs
+			JOIN buyjisong_product bd ON bs.id=bd.buyJisongId
+			JOIN ondemand d ON d.ondemandId=bd.productId
+			WHERE bd.type=2 AND bd.productType IN(3,4)
+			<if test="id!=null and id!=''">
+				AND bs.id=#{id}
+			</if>
+			<if test="not idList.isEmpty()">
+				AND bs.id IN
+				<foreach collection="idList" item="item" open="(" separator="," close=")">
+					#{item}
+				</foreach>
+			</if>
+		)t
+	</select>
+</mapper>

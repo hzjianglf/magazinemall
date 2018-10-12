@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="shareDao">
+	
+	
+	<sql id="sql_where">
+		<if test="name != null and name != ''">
+			and name like "%"#{name}"%"
+		</if>
+		<if test="status==0">
+			and startTime <![CDATA[>]]> NOW()
+		</if>
+		<if test="status==1">
+			and startTime <![CDATA[<]]> NOW() and NOW() <![CDATA[<]]> endTime
+		</if>
+		<if test="status==2">
+			and endTime <![CDATA[<]]> NOW()
+		</if>
+		<if test="status==3">
+			and state=2
+		</if>
+		<if test="status==4">
+			and state=1
+		</if>
+	</sql>
+	<!-- 分享销售列表 -->
+	<select id="selShareSalesList" resultType="hashmap" parameterType="hashmap">
+		select id,name,date_format(startTime,'%Y-%m-%d %T') startTime,date_format(endTime,'%Y-%m-%d %T') endTime,state,
+		CASE WHEN startTime <![CDATA[>]]> NOW() THEN '未开始' WHEN endTime <![CDATA[<]]> NOW() THEN '已结束' WHEN startTime <![CDATA[<]]> NOW() <![CDATA[<]]> endTime THEN '进行中' END status
+		from shareSales
+		where 1=1 
+		<include refid="sql_where"></include>
+		order by startTime asc
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 分享销售count -->
+	<select id="selShareSalesCount" resultType="long" parameterType="hashmap">
+		select count(id) from shareSales
+		where 1=1 
+		<include refid="sql_where"></include>
+	</select>
+	<!-- 删除 -->
+	<delete id="deleteShare" parameterType="hashmap">
+		delete from shareSales where id=#{id}
+	</delete>
+	<!-- 添加活动 -->
+	<insert id="addShareSales" parameterType="hashmap" useGeneratedKeys="true" keyProperty="id">
+		insert into shareSales (name,title,startTime,endTime,cutDown,shutDown,integral,picUrl,introduce)
+		values(#{name},#{title},#{startTime},#{endTime},#{cutDown},#{shutDown},#{integral},#{picUrl},#{introduce})
+	</insert>
+	<!-- 编辑活动 -->
+	<update id="UpShareSales" parameterType="hashmap">
+		update shareSales set name=#{name},title=#{title},startTime=#{startTime},endTime=#{endTime},cutDown=#{cutDown},shutDown=#{shutDown},
+		integral=#{integral},picUrl=#{picUrl},introduce=#{introduce},state=#{state} where id=#{id}
+	</update>
+	<!-- 查询商品 -->
+	<select id="selProduct" resultType="hashmap" parameterType="hashmap">
+		select * from (
+			select id,name,paperPrice price,type,picture url from book where state=0 and stock &gt; 0
+			UNION ALL
+			select ondemandId as id,name,ifnull(presentPrice,originalPrice) price,4 as type,picUrl url from ondemand where status <![CDATA[<>0]]> and status <![CDATA[<> -1]]>
+		) as a
+		where 1=1 
+		<if test="list!=null and  not list.isEmpty()">
+			and a.type in
+			<foreach collection="list" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+		<if test="name != null and name != ''">
+			and a.name like "%"#{name}"%"
+		</if>
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 查询商品count -->
+	<select id="selProductCount" resultType="long" parameterType="hashmap">
+		select count(*) from (select id,name,paperPrice price,type,picture url from book
+		UNION ALL
+		select ondemandId as id,name,ifnull(presentPrice,originalPrice) price,4 as type,picUrl url from ondemand) as a
+		where 1=1
+		<if test="list!=null and not list.isEmpty()">
+			and a.type in
+			<foreach collection="list" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+		<if test="name != null and name != ''">
+			and a.name like "%"#{name}"%"
+		</if>
+	</select>
+	<!-- 查询所有已关联的商品 -->
+	<select id="findByIdsAll" resultType="hashmap" parameterType="hashmap">
+		select * from (
+			select id,name,paperPrice price,type,picture url from book
+			<where>
+				<if test="strs1!=null and strs1!='' and strs2!=null and strs2!=''">
+					id in 
+					<foreach collection="list1" index="index" separator="," item="item" open="(" close=")">
+						#{item}
+					</foreach>
+				</if>
+			</where>
+			UNION ALL
+			select ondemandId as id,name,ifnull(presentPrice,originalPrice) price,4 as type,picUrl url from ondemand
+			<where>
+				<if test="strs1!=null and strs1!='' and strs2!=null and strs2!=''">
+					ondemandId in 
+					<foreach collection="list2" index="index" separator="," item="item" open="(" close=")">
+						#{item}
+					</foreach>
+				</if>
+			</where>
+		) as a
+		where 1=1
+		<if test="(strs1!=null and strs1!='') and (strs2==null or strs2=='')">
+			and a.id in 
+			<foreach collection="list1" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+		<if test="(strs2!=null and strs2!='') and (strs1==null or strs1=='')">
+			and a.id in 
+			<foreach collection="list2" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+		<if test="(strs1!=null and strs1!='') and (strs2==null or strs2=='')">
+			and a.type != 4
+		</if>
+		<if test="(strs2!=null and strs2!='') and (strs1==null or strs1=='')">
+			and a.type = 4
+		</if>
+	</select>
+	<!-- 添加关联商品中间表 -->
+	<insert id="addShareSalesProduct" parameterType="hashmap">
+		insert into sharesales_product (activeId,productType,productId,activityType)
+		values 
+		<foreach collection="list" index="index" separator="," item="item">
+			(#{item.activeId},#{item.productType},#{item.productId},#{item.activityType})
+		</foreach>
+	</insert>
+	<!-- 根据id查询详情 -->
+	<select id="findByIdshareSales" resultType="hashmap" parameterType="hashmap">
+		select id,name,title,date_format(startTime,'%Y-%m-%d %T') startTime,date_format(endTime,'%Y-%m-%d %T') endTime,
+		cutDown,shutDown,integral,picUrl,introduce,state,
+		CASE WHEN startTime <![CDATA[>]]> NOW() THEN '未开始' WHEN endTime <![CDATA[<]]> NOW() THEN '已结束' WHEN startTime <![CDATA[<]]> NOW() <![CDATA[<]]> endTime THEN '进行中' END status
+		from sharesales where id=#{id}
+	</select>
+	<!-- 查询该活动的关联商品 -->
+	<select id="selectRelationProduct" resultType="hashmap" parameterType="hashmap">
+		select * from (select b.id,b.name,b.paperPrice price,b.type,b.picture url,p.activeId,p.activityType from book b
+		JOIN 
+		sharesales_product p ON b.id=p.productId
+		AND p.productType in (1,2,3)
+		UNION ALL
+		select o.ondemandId as id,o.name,ifnull(o.presentPrice,originalPrice) price,4 as type,o.picUrl url,sp.activeId,sp.activityType from ondemand o
+		JOIN 
+		sharesales_product sp ON o.ondemandId=sp.productId
+		AND sp.productType = 4) as a
+		where a.activeId = #{id} and activityType=#{activityType}
+	</select>
+	<!-- 删除中间表数据 -->
+	<delete id="delShareSalesProduct" parameterType="hashmap">
+		delete from sharesales_product where activeId=#{id} and activityType=#{activityType}
+	</delete>
+	
+</mapper>

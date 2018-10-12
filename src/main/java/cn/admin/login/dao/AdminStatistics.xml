@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="adminStatisticsDao">
+	<!-- 今天视频咨询量 -->
+	<select id="getTodayBrowse" resultType="int">
+		SELECT COUNT(id) FROM ordersvideo WHERE TO_DAYS(videoTime) = TO_DAYS(NOW());
+	</select>
+	<!-- 今天交易金额 -->
+	<select id="getTodayPay" resultType="integer">
+		SELECT SUM(processParam) FROM ordersprocess WHERE TO_DAYS(operateTime) = TO_DAYS(NOW()) 
+		AND isFinish = 1 AND processName = '在线支付'
+	</select>
+	<!-- 今天业务量 -->
+	<select id="getTodayCount" resultType="int">
+		SELECT COUNT(id) FROM orders WHERE TO_DAYS(addTime) = TO_DAYS(NOW())
+	</select>
+	<!-- 最近7天的日访问量 -->
+	<select id="getCountInSevenDays" resultType="map">
+		SELECT COUNT(id) AS count, DATE_FORMAT(videoTime,'%Y-%m-%d') AS date FROM ordersvideo 
+		WHERE DATE_SUB(CURDATE(), INTERVAL 7 DAY) <![CDATA[<=]]> DATE(videoTime) GROUP BY TO_DAYS(videoTime);
+	</select>
+	<!-- 最近30天客服排行榜 -->
+	<select id="getCountInThirtyDays" resultType="map">
+		SELECT COUNT(o.id) AS count,u.realname,r.name FROM orders o LEFT JOIN ordersvideo ov ON o.videoId = ov.id 
+		LEFT JOIN userinfo u ON ov.serverId = u.userId
+		LEFT JOIN retailstore r ON u.storeId = r.id
+		WHERE DATE_SUB(CURDATE(), INTERVAL 30 DAY) <![CDATA[<=]]> DATE(o.addTime) GROUP BY u.userId ORDER BY COUNT(o.id) DESC;
+	</select>
+	<!-- 服务类型分布情况 -->
+	<select id="getBusinessType" resultType="map">
+		SELECT b.typeFirst,
+		COUNT(o.id)/(
+			SELECT COUNT(id) FROM orders WHERE DATE_SUB(CURDATE(), INTERVAL 30 DAY) <![CDATA[<=]]> DATE(addTime)
+			)*100 AS percent
+		FROM orders o LEFT JOIN business b ON o.businessId = b.id
+		WHERE DATE_SUB(CURDATE(), INTERVAL 30 DAY) <![CDATA[<=]]> DATE(o.addTime) GROUP BY b.typeFirst
+	</select>
+</mapper>

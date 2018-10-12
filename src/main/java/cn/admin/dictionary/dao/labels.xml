@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="labelsDao">
+	
+	
+	
+	<sql id="sql_where">
+		<if test="name !=null and name != '' ">
+			and name like "%"#{name}"%"
+		</if>
+		<if test="status !=null and status !=''">
+			and status=#{status}
+		</if>
+		<if test="ids!=null and ids!=''">
+			and id in
+			<foreach collection="id" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+	</sql>
+	<!-- 标签列表count -->
+	<select id="selLabelsCount" resultType="long" parameterType="hashmap">
+		select count(id) from labels 
+		where 1=1
+		<include refid="sql_where"></include>
+	</select>
+	<!-- 标签列表 -->
+	<select id="selectLabelsList" resultType="hashmap" parameterType="hashmap">
+		select * from labels
+		where 1=1
+		<include refid="sql_where"></include>
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 删除标签 -->
+	<delete id="deleteLabel" parameterType="hashmap">
+		delete from labels where id=#{id}
+	</delete>
+	<!-- 批量删除标签 -->
+	<delete id="deleteLabelByids" parameterType="hashmap">
+		delete from labels where id in
+		<foreach collection="id" index="index" separator="," item="item" open="(" close=")">
+			#{item}
+		</foreach>
+	</delete>
+	<!-- 启用禁用标签 -->
+	<update id="updateStatus" parameterType="hashmap">
+		update labels set status=#{status} where id=#{id}
+	</update>
+	<!-- 批量启用禁用 -->
+	<update id="batchUpStatus" parameterType="hashmap">
+		update labels set status=#{status} where id in
+		<foreach collection="id" index="index" separator="," item="item" open="(" close=")">
+			#{item}
+		</foreach>
+	</update>
+	<!-- 根据id查询详情 -->
+	<select id="findById" resultType="hashmap" parameterType="hashmap">
+		select * from labels where id=#{id}
+	</select>
+	<!-- 添加标签 -->
+	<insert id="addLabel" parameterType="hashmap">
+		insert into labels (name,classification,status) values(#{name},#{classification},#{status})
+	</insert>
+	<!-- 编辑标签 -->
+	<update id="updateLabel" parameterType="hashmap">
+		update labels set name=#{name},classification=#{classification},status=#{status} where id=#{id}
+	</update>
+	<!-- 查询导出数据 -->
+	<select id="selectDownLoad" resultType="hashmap" parameterType="hashmap">
+		select id,name,classification,case status when 0 then '禁用' when 1 then '启用' end status,
+		number from labels
+		where 1=1
+		<include refid="sql_where"></include>
+	</select>
+	<!-- 根据类型查询标签 -->
+	<select id="findLabelBytype" resultType="hashmap" parameterType="String">
+		select id,name from labels where classification = #{_parameter}
+	</select>
+	
+</mapper>

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="newsDao">
+
+	<!-- 获取消息列表 -->
+	<select id="selectNewList" resultType="hashmap" parameterType="hashmap">
+		select us.id,us.dataId,us.dataType,us.content,us.type,us.fromUserId,us.fromUserType,date_format(us.addTime , '%Y-%m-%d') addTime,
+		ifnull(u.realname,u.nickName) realname , u.userUrl userurl
+		from usernews us 
+		left join userinfo u on u.userId=us.fromUserId
+		where us.toUserId=#{userId} and us.status IN (1,2)
+		order by us.addTime desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	
+	<!-- count -->
+	<select id="selectNewsCount" resultType="long" parameterType="hashmap">
+		select count(0) from usernews where toUserId=#{userId} and status IN (1,2)
+	</select>
+	
+	<!-- 获取新消息的数量 -->
+	<select id="selectNewNewsCount" resultType="long" parameterType="hashmap">
+		select count(0) from usernews where toUserId=#{userId} and status=1
+	</select>
+	
+
+	<!-- 新增消息 -->
+	<insert id="insertUserNew" parameterType="hashMap">
+		INSERT INTO usernews (dataId,dataType,content,toUserId,type,fromUserId,fromUserType,addTime,remark,status) 
+		VALUES(#{dataId},#{dataType},#{content},#{toUserId},#{type},#{fromUserId},#{fromUserType},NOW(),#{remark},1)
+	</insert>
+
+	<!-- 消息标记为已阅 -->
+	<update id="updateUserNew" parameterType="hashMap">
+		UPDATE usernews set status=2 WHERE toUserId=#{userId} AND status=1
+		<if test="id!=null and id!=''">
+			AND id=#{id}
+		</if>
+		<if test="idList!=null and not idList.isEmpty()">
+			AND id IN
+			<foreach collection="idList" item="item" open="(" separator="," close=")">
+				#{item}
+			</foreach>
+		</if>
+	</update>
+	
+	<!--消息标记为删除 -->
+	<update id="updateUserNewForHide" parameterType="hashMap">
+		UPDATE usernews set status=0 WHERE toUserId=#{userId} AND status=2
+		<if test="id!=null and id!=''">
+			AND id=#{id}
+		</if>
+		<if test="idList!=null and not idList.isEmpty()">
+			AND id IN
+			<foreach collection="idList" item="item" open="(" separator="," close=")">
+				#{item}
+			</foreach>
+		</if>
+	</update>
+	
+	<!-- 查询用户是否为专家 -->
+	<select id="selIsTeacher" parameterType="int" resultType="int">
+		SELECT userId FROM userinfo where userId = #{fromUserId} and userType=2
+	</select>
+	<!-- 查询用户是否关注 -->
+	<select id="selIsFavorite" parameterType="hashmap" resultType="int">
+		select id from usernews where toUserId=#{fromUser} and fromUserId =#{toUser} and dataType = 1  and type=1
+	</select>
+	<!-- 修改用户关注的状态 -->
+	<update id="updFavoriteByUserId" parameterType="int">
+		update usernews set type=2 where id=#{newsId}
+	</update>
+</mapper>

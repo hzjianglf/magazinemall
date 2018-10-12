@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="accountLogDao">
+	<!-- 查询用户消费记录 -->
+	<select id="selAccountLog" parameterType="hashmap" resultType="hashmap">
+		select u.Id,u.money,u.num,u.`status`,date_format(u.time, '%Y-%m-%d %T') time,u.userId,u.paystatus,
+		case type WHEN 1 then '充值' when 2 then  '提问' when 3 then '购买' when 4 then '旁听' when 5 then '打赏'
+		when 6 then '提问退款' when 7 then '平台收益'  END as types,
+		IFNULL((select sum(money)from useraccountlog uc where uc.userId=#{userId} and uc.time  &gt; #{startTime} and uc.time &lt; #{endTime} and uc.status=0),0) AS consumTotal,
+		IFNULL((select sum(money)from useraccountlog ul where ul.userId=#{userId} and ul.time  &gt; #{startTime} and ul.time &lt; #{endTime} and ul.type=1 and ul.paystatus=0),0) as failMoney,
+		IFNULL((select sum(money)from useraccountlog ud where ud.userId=#{userId} and ud.time  &gt; #{startTime} and ud.time &lt; #{endTime} and ud.status=1 ),0) as incomeTotal
+		from useraccountlog u
+		where u.userId=#{userId} and u.time &gt; #{startTime} and u.time &lt; #{endTime}
+		ORDER BY u.time DESC
+	</select>
+	<!-- 查询用户指定年和月产生的消费记录 -->
+	<select id="getContentByYearAndMonth" parameterType="hashmap" resultType="hashmap">
+		select date_format(time,'%Y-%m') year from useraccountlog
+		where userId=#{userId}
+		GROUP BY date_format(time,'%Y-%m')
+		ORDER BY time DESC
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 查询交易记录数量 -->
+	<select id="getRecordCount" parameterType="hashmap" resultType="long">
+		select count(*)
+		from useraccountlog u
+		where u.userId= #{userId}
+		<if test="startTime != null and startTime != ''">
+			and u.time &gt; #{startTime}
+		</if>
+		<if test="endTime != null and endTime != ''">
+			and u.time &lt; #{endTime}
+		</if>
+		<if test="status != null and status != ''">
+			and status = #{status}
+		</if>
+		ORDER BY u.time DESC
+	</select>
+	<!-- 查询交易记录数量 -->
+	<select id="getRecordList" parameterType="hashmap" resultType="hashmap">
+		select u.Id,u.money,u.num,u.`status`,date_format(u.time, '%Y-%m-%d %T') time,u.userId,u.paystatus,type,u.balance,
+		IFNULL((select sum(money)from useraccountlog uc where uc.userId=#{userId}
+		<if test="startTime != null and startTime != ''">
+			and uc.time &gt; #{startTime}
+		</if>
+		<if test="endTime != null and endTime != ''">
+			and uc.time &lt; #{endTime}
+		</if>
+		and  uc.status=0),0) AS consumTotal,
+		IFNULL((select sum(money)from useraccountlog ul where ul.userId=#{userId}
+		<if test="startTime != null and startTime != ''">
+			and ul.time &gt; #{startTime}
+		</if>
+		<if test="endTime != null and endTime != ''">
+			and ul.time &lt; #{endTime}
+		</if>
+		and  ul.type=1 and ul.paystatus=0),0) as failMoney,
+		IFNULL((select sum(money)from useraccountlog ud where ud.userId=#{userId}
+		<if test="startTime != null and startTime != ''">
+			and ud.time &gt; #{startTime}
+		</if>
+		<if test="endTime != null and endTime != ''">
+			and ud.time &lt; #{endTime}
+		</if>
+		and  ud.status=1 ),0) as incomeTotal
+		from useraccountlog u
+		where u.userId= #{userId} and u.paystatus = 1
+		<if test="startTime != null and startTime != ''">
+			and u.time &gt; #{startTime}
+		</if>
+		<if test="endTime != null and endTime != ''">
+			and u.time &lt; #{endTime}
+		</if>
+		<if test="status != null and status != ''">
+			and status = #{status}
+		</if>
+		ORDER BY u.time DESC
+		<if test="page != null and page != 0 and limit != 0">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 添加记录 -->
+	<insert id="add" parameterType="hashmap" useGeneratedKeys="true" keyProperty="useraccountId">
+		insert into useraccountlog (userId,type,money,time,num,status,month) values
+		 (#{userId},#{type},#{price},now(),#{orderNum},#{status},#{month})
+	</insert>
+	<!-- 查询充值信息(支付成功) -->
+	<select id="selectUseraccountlogMsg" parameterType="hashmap" resultType="hashmap">
+		select * from useraccountlog where Id=#{sourceId}
+	</select>
+	<!-- 修改充值信息的状态(支付成功) -->
+	<update id="updPaystatus" parameterType="int">
+		update useraccountlog set paystatus=1 where Id=#{sourceId}
+	</update>
+	<!-- 修改用户金额充值（支付成功） -->
+	<update id="updAddMoney" parameterType="hashmap">
+		UPDATE useraccount set balance=balance+#{money} ,allmoney=allmoney+#{money},LastCostDate=now()
+		,maxMoney = CASE when maxMoney &gt; #{money} then maxMoney else #{money} end 
+		where customerId=#{userId}
+	</update>
+</mapper>
+	

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.dao.wechatUserDao">
+	
+
+	<!-- 查询该手机号是否已经注册 -->
+	<select id="selWechatUserByOpenId" resultType="hashmap" parameterType="hashmap">
+		select id,userId,openId,IFNULL(nickName,'') as nickName,userUrl from wechat_userinfo where openId=#{openId}
+	</select>
+	<update id="updateWeChatUserId" parameterType="hashmap">
+		update wechat_userinfo set userId=#{userId} where openId=#{openId}
+	</update>
+	<!-- 更新用户的老数据订单关联userId -->
+	<update id="updateOrderByOpenId" parameterType="hashmap">
+		update `order` set userId=#{userId} where openId=#{openId}
+	</update>
+	<!-- 更新用户的老数据地址关联userId -->
+	<update id="updateAddressByOpenId" parameterType="hashmap">
+		update `deliveraddress` set userId=#{userId} where openId=#{openId}
+	</update>
+	
+	<insert id="insertWeChatUserRecord" parameterType="hashmap">
+		insert into wechat_userinfo (userId,openId,nickName,userUrl) values(#{userId},#{openId},#{nickName},#{userUrl})
+	</insert>
+	
+</mapper>

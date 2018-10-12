@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="favoritesDao">
+<!-- 取消收藏 -->
+	<delete id="delCollect" parameterType="hashmap">
+		DELETE from favorites where userId=#{userId} and dataId=#{dataId} and dataType=#{dataType} and favoriteType=#{favoriteType}
+	</delete>
+<!-- 查询收藏的纸质期刊 -->
+	<select id="selBook" parameterType="hashmap" resultType="hashmap">
+	
+		SELECT f.id as favoriteId ,b.id, b.`name` as bookName,b.picture FROM favorites f
+		LEFT JOIN book b on f.dataId=b.id
+
+		where f.userId=#{userId} and f.dataType=1 and f.favoriteType=1
+		ORDER BY f.addTime DESC
+	
+		limit #{start},#{pageSize}
+	</select>
+	<select id="getBookCount" parameterType="int" resultType="long">
+		select count(0) from favorites where userId=#{userId} and dataType=1 and favoriteType=1
+	</select>
+	<select id="selOthersCount" parameterType="int" resultType="long">
+		select count(0) from favorites where userId=#{userId} and dataType=3 and favoriteType=1
+	</select>
+<!-- 查询电子相关收藏的物品 -->
+	<select id="selOthers" parameterType="hashMap" resultType="hashmap">
+		select o.ondemandId, o.name,u.userUrl,o.studentNum,f.id as favoriteId,o.hits,o.IsRecommend,o.serialState,
+		(select count(0) from `ondemand_chapter` where ondemandId=o.ondemandId )as count
+		from favorites f
+		LEFT JOIN ondemand o on f.dataId=o.ondemandId
+		left join ondemand_teacher ot on o.ondemandId=ot.ondemandId
+		left join userinfo u on ot.teacherId=u.userId
+		where f.userId=#{userId} and f.dataType=3 and f.favoriteType=1
+		ORDER BY f.addTime DESC
+		limit #{start},#{pageSize}
+	</select>
+<!-- 购物车商品移入收藏 -->
+<!-- 	<insert id="moveFavorite" parameterType="hashMap">
+		insert into favorites (dataId,dataType,favoriteType,userId,addTime) values
+		(#{dataId},#{dataType},1,#{userId},now())
+	</insert> -->
+<!-- 批量取消收藏 -->
+	<delete id="batcancelCollect" parameterType="hashmap">
+		DELETE from favorites where userId=#{userId} and dataType=#{dataType} and favoriteType=#{favoriteType}
+		and id in
+		<foreach collection="list" item="item" open="(" close=")" separator=",">
+			#{item}
+		</foreach>
+		
+	</delete>
+	
+	<!-- 关注列表 -->
+	<select id="selectFollowList" resultType="hashmap" parameterType="hashmap">
+		SELECT u.userId,u.userUrl,IFNULL(u.realname,u.nickName) name,f.id,f.dataType,f.favoriteType,date_format(f.addTime,'%Y-%m-%d %T') addTime
+		from favorites f
+		LEFT JOIN userinfo u on u.userId=
+		<if test="type==1">
+			f.dataId
+		</if>
+		<if test="type==2">
+			f.userId
+		</if>
+		where f.favoriteType=2 AND f.dataType=5
+		<if test="type==1">
+			and f.userId=#{userId}
+		</if>
+		<if test="type==2">
+			and f.dataId=#{userId}
+		</if>
+		ORDER BY f.addTime desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 关注列表count -->
+	<select id="selectFollowCount" resultType="long" parameterType="hashmap">
+		select count(0) from favorites f
+		<if test="type==1">
+			LEFT JOIN userinfo u on u.userId=f.userId
+		</if>
+		<if test="type==2">
+			LEFT JOIN userinfo u on u.userId=f.dataId
+		</if>
+		where f.favoriteType=2 AND f.dataType=5
+		<if test="type==1">
+			and f.userId=#{userId}
+		</if>
+		<if test="type==2">
+			and f.dataId=#{userId}
+		</if>
+	</select>
+</mapper>

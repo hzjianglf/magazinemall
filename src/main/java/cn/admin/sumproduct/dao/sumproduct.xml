@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="sumproductDao">
+	<sql id="wh">
+		<where>
+		<if test="state!=null and state!=''">
+			and status = #{state}
+		</if>
+		<if test="founder!=null and founder!=''">
+			and nickName like "%"#{founder}"%"
+		</if>
+		<if test="name!=null and name!=''">
+			and name like "%"#{name}"%"
+		</if>
+		<if test="classtype!=null and classtype!=''">
+			and classtype =#{classtype}
+		</if>
+		</where>
+	</sql>
+	<!-- 查询合集总条数 -->
+	<select id="getSumProductCount" parameterType="hashmap" resultType="long">
+		select count(0) from (
+			select t.status,t.classtype,t.`name`,ifnull(u.realName,u.nickName) nickName from ondemand t
+			LEFT JOIN userinfo u on t.founder=u.userId
+			where t.isSum!=0  
+		union ALL
+		 	SELECT t.state,2,t.`name`,ifnull(u.realName,u.nickName) nickName from book t 	LEFT JOIN userinfo u on t.founder=u.userId 
+		  	where t.periodicalId is null ) as t 
+	  	 <include refid="wh"></include>
+	</select>
+	<!-- 查询合集列表 -->
+	<select id="getSumProductList" parameterType="hashmap" resultType="hashmap">
+		select * from (
+			SELECT o.ondemandId,o.classtype,o.`name`,o.presentPrice,o.studentNum,IFNULL(u.userName,u.nickName)nickName,(case when o.classtype=0 then '点播课程' else '直播课程' END)as classtypes,
+			date_format(o.creationTime, '%Y-%m-%d %H:%i') time,
+			o.status,
+			(case when o.status=0 then '下架' else '上架' END)as sumstatus
+			FROM ondemand o
+			LEFT JOIN userinfo u on o.founder=u.userId where isSum!=0 
+		UNION ALL
+			SELECT b.id,2,b.`name`,b.paperPrice,b.sales,IFNULL(u.userName,u.nickName)nickName,(case when b.isSaleEbook then '电子期刊' else '纸质期刊' end) as classtypes,
+			date_format(b.inputDate, '%Y-%m-%d %H:%i') time,
+			case when b.state=1 then 0 else 1 END,
+			(case when b.state=1 then '下架' else '上架' END)as sumstatus
+			 from book b 	LEFT JOIN userinfo u on b.founder=u.userId 
+			where b.periodicalId is null
+			) t 
+ 		<include refid="wh"></include>
+	</select>
+	<!-- 查询课程分类 -->
+	<select id="selDictionary" parameterType="hashmap" resultType="hashmap">
+		SELECT id,name,orderIndex FROM `assortment` where status=1 and type=1 ORDER BY orderIndex
+	</select>
+	
+	<!-- 合辑添加课程时用到的方法==================================== -->
+	<sql id="wh2">
+		and status<![CDATA[!=0]]> AND status <![CDATA[!=-1]]> and classtype=#{classtype} and isSum=0
+		<if test="name!=null and name!=''">
+			and o.name like "%"#{name}"%"
+		</if>
+		<if test="userName!=null and userName!=''">
+			and u.nickName like "%"#{userName}"%"
+		</if>
+		<if test="type!=null and type!=''">
+			and o.type =#{type}
+		</if>
+	</sql>
+	<!-- 查询课程总条数 -->
+	<select id="getProducotCount" parameterType="hashmap" resultType="long">
+		select count(0) from ondemand o 
+		LEFT JOIN ondemand_teacher ot on o.ondemandId=ot.ondemandId
+		LEFT JOIN userinfo u on u.userId=ot.teacherId where 1=1 <include refid="wh2"></include>
+	</select>
+	<!-- 查询刊物列表 -->
+	<select id="getBookProducotCount" resultType="long" parameterType="hashmap">
+		select count(0) from periodical where state = 1
+	</select>
+	<select id="getBookProducotList" resultType="hashmap" parameterType="hashmap">
+		select DISTINCT p.`year`, pl.*, date_format(pl.inputDate, '%Y-%m-%d %H:%i')time from periodical pl
+		LEFT JOIN publishingplan p on p.periodicalId = pl.id
+		 where pl.state = 1 and p.year = #{year}
+		
+	</select>
+	<!-- 查询课程列表 -->
+	<select id="getProducotList" parameterType="hashmap" resultType="hashmap">
+		select o.*,(case when o.classtype=0 then  date_format(o.creationTime, '%Y-%m-%d %H:%i') else date_format(o.starttime, '%Y-%m-%d %H:%i') END) as time
+		from ondemand o
+		LEFT JOIN ondemand_teacher ot on o.ondemandId=ot.ondemandId
+		LEFT JOIN userinfo u on u.userId=ot.teacherId where 1=1 <include refid="wh2"></include>
+		<if test="classtype!=null and classtype!='' and classtype==0">
+			order by o.creationTime desc
+		</if>
+		<if test="classtype!=null and classtype!='' and classtype==1">
+			order by o.starttime desc
+		</if>
+	</select>
+	<!-- 新增课程合集-->
+	<insert id="addSumproduct" parameterType="hashmap" useGeneratedKeys="true" keyProperty="id">
+		insert into ondemand
+		(name,sortNo,type,founder,introduce,picUrl,originalPrice,presentPrice,creationTime,status
+		,classtype,
+		<if test="date!=null and date!=''">
+			endtime,
+		</if>
+		IsRecommend,isSum)
+		values 
+		(#{name},#{sortNo},#{subType},#{founder},#{introduce},#{picUrl},#{ytotalprice},#{xtotalprice},now(),#{open}
+		,#{classtype},
+		<if test="date!=null and date!=''">
+			#{date},
+		</if>
+		#{isTop},1
+		)
+	</insert>
+	<!-- 新增刊物合集-->
+	<insert id="addSumBookproduct" parameterType="hashmap" useGeneratedKeys="true" keyProperty="id">
+		insert into book
+		(name,sortNo,state,founder,isTop,stock,describes,pictureUrl,picture,paperPrice,ebookPrice,inputDate,publishTime,isSalePaper,isSaleEbook,isShowAsProduct
+		,sumType
+		<if test="postageType!=null and postageType!=''">
+			,postageType
+		</if>
+		<if test="postage!=null and postage!=''">
+			,postage
+		</if>
+		<if test="postageTempId!=null and postageTempId!=''">
+			,postageTempId
+		</if>
+		)
+		values 
+		(#{name},#{sortNo},#{state},#{founder},#{isTop},10000,#{introduce},#{picUrl},#{picUrl},#{xtotalprice},#{xtotalprice},now(),now(),#{isSalePaper},#{isSaleEbook},1
+		,4
+		<if test="postageType!=null and postageType!=''">
+			,#{postageType}
+		</if>
+		<if test="postage!=null and postage!=''">
+			,#{postage}
+		</if>
+		<if test="postageTempId!=null and postageTempId!=''">
+			,#{postageTempId}
+		</if>
+		)
+	</insert>
+	<!-- 编辑刊物合集-->
+	<update id="editSumBookproduct" parameterType="hashmap">
+		update book set name=#{name},founder=#{founder},sortNo=#{sortNo},
+		describes=#{introduce},paperPrice=#{xtotalprice},ebookPrice=#{xtotalprice},
+		picture=#{picUrl},pictureUrl=#{picUrl},state=#{state},isSalePaper=#{isSalePaper},isSaleEbook=#{isSaleEbook},
+		<if test="postageType !=null and postageType !=''"> postageType=#{postageType},</if>
+		<if test="postage !=null and postage !=''"> postage=#{postage},</if>
+		<if test="postageTempId !=null and postageTempId !=''">postageTempId=#{postageTempId},</if>
+		isTop=#{isTop}
+		where id=#{id}
+	</update>
+	<update id="updSumBookproduct" parameterType="hashmap">
+		update book set `desc` = #{allIds},year = #{year} where id= #{id}
+	</update>
+	<!-- 添加关联商品中间表 课程-->
+	<insert id="addSubProduct" parameterType="hashmap">
+		insert into sum_product (productid,itemId,price)
+		values 
+		<foreach collection="list" index="index" separator="," item="item">
+			(#{item.productid},#{item.itemId},#{item.price})
+		</foreach>
+	</insert>
+	<!-- 添加关联商品中间表 刊物-->
+	<insert id="addSubBookProduct" parameterType="hashmap">
+		insert into sum_product (productid,bookid,year)
+		values 
+		<foreach collection="list" index="index" separator="," item="item">
+			(#{item.productid},#{item.bookid},#{item.year})
+		</foreach>
+	</insert>
+	<!-- 查询刊物合集所有期次id -->
+	<select id="selPublishByPeriod" parameterType="hashmap" resultType="int">
+		select p.id from publishingplan p 
+		LEFT JOIN periodical pl on p.periodicalId=pl.id
+		where pl.id =#{bookid} and p.year = #{year}
+	</select>
+	<select id="selSumById" parameterType="string" resultType="hashmap">
+		select ondemandId,name,introduce,classtype,sortNo,originalPrice,presentPrice,IsRecommend,date_format(endTime,'%Y-%m-%d %T') endTime,status,picUrl
+		from ondemand
+		where ondemandId=#{id}
+	</select>
+	<select id="selSumBookById" parameterType="string" resultType="hashmap">
+		SELECT id as ondemandId,name,describes,2 as classtype,paperPrice as presentPrice,isTop as IsRecommend
+		,case state when 0 then 1 else 0 end status ,picture as picUrl,
+		postageType,postage,postageTempId,isSalePaper,sortNo FROM `book`
+		where id = #{id}
+	</select>
+	<select id="selproductList" parameterType="string" resultType="hashmap">
+		select sp.id, sp.price xprice,o.originalPrice,o.ondemandId,o.`name`,o.classtype subType from sum_product sp
+		LEFT JOIN ondemand o on sp.itemId=o.ondemandId
+		where sp.productid=#{id}
+	</select>
+	<select id="selBookproductList" parameterType="string" resultType="hashmap">
+		select CONCAT(sp.`year`,'年',p.`name`) name ,p.id as ondemandId,sp.year xprice from periodical p LEFT JOIN sum_product sp  on sp.bookid = p.id where sp.productid=#{id}
+	</select>
+	<!-- 查找刊物年份 -->
+	<select id="selYears" resultType="string">
+		select DISTINCT p.year from periodical pl  JOIN publishingplan p on p.periodicalId = pl.id 
+	</select>
+	<update id="editSumproduct" parameterType="hashmap">
+		update ondemand set name=#{name},founder=#{founder},sortNo=#{sortNo},
+		introduce=#{introduce},presentPrice=#{xtotalprice},classtype=#{classtype},
+		originalPrice=#{ytotalprice},picUrl=#{picUrl},status=#{open},
+		<if test="date!=null and date!=''">
+			endtime=#{date},
+		</if>
+		IsRecommend=#{isTop}
+		where ondemandId=#{id}
+	</update>
+	<delete id="delproduct" parameterType="hashmap">
+		delete from sum_product where productid=#{id} and bookid is null
+	</delete>
+	<delete id="delBookproduct" parameterType="hashmap">
+		delete from sum_product where productid=#{id} and bookid is not null
+	</delete>
+	<update id="updStatus" parameterType="hashmap">
+		update ondemand set status=#{status} where ondemandId=#{id}
+	</update>
+</mapper>

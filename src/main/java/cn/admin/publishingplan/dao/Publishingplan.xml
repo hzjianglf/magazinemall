@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="planDao">
+	<sql id="wh">
+		<if test="year!=null and year!=''">
+			and year=#{year}
+		</if>
+		<if test="founder!=null and founder!=''">
+			and founder like "%"#{founder}"%"
+		</if>
+		<if test="describes!=null and describes!=''">
+			and describes like "%"#{describes}"%"
+		</if>
+	</sql>
+	<!-- 查询出版计划总条数 -->
+	<select id="getPublishingplanCount" parameterType="hashmap" resultType="long">
+		select count(*) from publishingplan where periodicalId=#{perId} <include refid="wh"></include>
+	</select>
+	<!-- 查询出版计划列表 -->
+	<select id="getPublishingplanList" parameterType="hashmap" resultType="hashmap">
+		select *,date_format(inputDate, '%Y-%m-%d %H:%i') date from publishingplan where periodicalId=#{perId} <include refid="wh"></include>  
+		ORDER BY year desc,totalPeriod
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 添加出版计划 -->
+	<insert id="adds" parameterType="hashmap">
+		insert into publishingplan (periodicalId,year,describes,inputDate,founder,totalPeriod) values
+		<foreach collection="list" index="index" item="item"  separator=",">
+			(#{perId},#{year},#{item.describes},now(),#{founder},#{item.totalPeriod})
+		</foreach>
+	</insert>
+	<!-- 通过id查询出版计划内容 -->
+	<select id="selOne" parameterType="String" resultType="hashmap">
+		select * from publishingplan where id=#{_parameter}
+	</select>
+	<!-- 修改出版计划 -->
+	<update id="ups" parameterType="hashmap">
+		update publishingplan set describes=#{describes} where id=#{id}
+	</update>
+	<!-- 删除出版计划 -->
+	<delete id="deletePeriodical" parameterType="String">
+		delete from publishingplan where id=#{_parameter}
+	</delete>
+	<!-- 修改出版计划状态 -->
+	<update id="upState" parameterType="hashmap">
+		update publishingplan set state=#{state}
+		where id=#{id}
+	</update>
+	<!-- 查询年份 -->
+	<select id="selYear" parameterType="hashmap" resultType="hashmap">
+		select year from publishingplan where periodicalId=#{perId} GROUP BY `year`
+	</select>
+</mapper>

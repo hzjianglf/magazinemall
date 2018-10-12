@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="discountPriceDao">
+	<!-- 查询所有符合时间的打折活动 -->
+		<select id="selAllDiscount" resultType="int">
+			select id from discount where startTime &lt; now() and endTime &gt; now() and `status`=1
+		</select>
+	<!-- 查询打折最低的活动商品价格 -->
+		<select id="selMinPrice" parameterType="hashmap" resultType="double">
+			select MIN(dp.price) from discount d
+			LEFT JOIN discount_product dp on d.id = dp.disID
+			where d.id in 
+			<foreach collection="list" item="item" separator="," open="(" close=")">
+				#{item}
+			</foreach>
+			and dp.productId=#{productId} and dp.productType=#{type}
+		</select>
+	<!-- 查询期刊原价 -->
+		<select id="selBookYuanPrice" parameterType="hashmap" resultType="double">
+			SELECT 
+				CASE when #{type}=1 then paperPrice ELSE ebookPrice end  price
+			FROM `book` where id = #{productId}
+		</select>
+	<!-- 查询课程原价 -->
+		<select id="selOndemandPrice" parameterType="hashmap" resultType="double">
+			SELECT presentPrice FROM `ondemand` WHERE ondemandId = #{productId}
+		</select>	
+</mapper>
+	

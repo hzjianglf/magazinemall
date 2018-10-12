@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="roleDao">
+	<!-- 查询所有角色 -->
+	<select id="selectRoleInfo" parameterType="hashmap" resultType="hashmap">
+		select roleid,roleName,case when identify = 0 then '管理端角色' 
+		when identify = 1 then '会员端角色' else '讲师端角色' end identify,isFixation,
+		case when isFixation = 0 then '固定角色' else '非固定角色' end isFixationName
+		from role 
+		where 1= 1
+		<if test="roleName != null and roleName != ''">
+			and roleName like "%"#{roleName}"%"
+		</if>
+		<!-- <if test="identify != null and identify != ''">
+			and identify=#{identify}
+		</if> -->
+		order by identify limit #{start},#{pageSize}
+	</select>
+	<!-- 根据roleid查询角色 -->
+	<select id="selectRoleById" parameterType="string" resultType="hashmap">
+		select * from role where roleid=#{roleid}
+	</select>
+	<!-- 记录条数 -->
+	<select id="countRole" resultType="long" parameterType="hashMap">
+		select count(roleid) from role 
+		where 1= 1
+		<if test="roleName != null and roleName != ''">
+			and roleName like "%"#{roleName}"%"
+		</if>
+		<!-- <if test="identify != null and identify != ''">
+			and identify=#{identify}
+		</if> -->
+	</select>
+	<!-- 删除角色 -->
+	<delete id="delRole" parameterType="string">
+		delete from role where roleid=#{roleid}
+	</delete>
+	<!-- 查询userrole表中的相关记录判断某一角色下是否还有人员 -->
+	<select id="selectUserRole" parameterType="string" resultType="int">
+		select count(*) from userrole where roleid=#{roleid}
+	</select>
+	<!-- 删除userrole表中的相关记录 -->
+	<delete id="delur" parameterType="string">
+		delete from userrole where
+		roleid=#{roleid}
+	</delete>
+	<!-- 删除roleauthority表中的相关记录 -->
+	<delete id="delar" parameterType="string">
+		delete from roleauthority where roleid=#{roleid}
+	</delete>
+	<!-- 根据用户查询用户角色 -->
+	<select id="selectRoleIdByUserId" parameterType="String" resultType="String">
+		select roleId from userrole where userId = #{userId}
+	</select>
+	<!-- 添加角色 -->
+	<insert id="addRoleInfo" parameterType="hashmap" useGeneratedKeys="true" keyProperty="roleid">
+		INSERT INTO role(roleName,identify,isFixation)
+		 VALUES(#{roleName},#{identify},#{isFixation})
+	</insert>
+	<!-- 修改角色 -->
+	<update id="update" parameterType="hashMap">
+		UPDATE role
+		<set>
+			<if test="roleName !=null and roleName !='' ">roleName=#{roleName},</if>
+			<if test="identify !=null and identify !='' ">identify = #{identify},</if>
+			<if test="isFixation !=null and isFixation !='' ">isFixation = #{isFixation}</if>
+		</set>
+		where roleid = #{roleid}
+	</update>
+	<!-- 同时将role和Authority表关联 --> 
+	<insert id="add" parameterType="map">
+		insert into roleauthority (roleid,authorityid)  values
+		<foreach collection="AuthorityID" index="index" item="item"
+			separator=",">
+			( #{roleid}, #{item} )
+		</foreach>
+	</insert>
+	<!-- 查询某角色下是否有权限 -->
+	<select id="select" parameterType="map" resultType="int">
+		select count(*) from roleauthority where roleid=#{roleid}
+	</select>
+	<!-- 删除角色对应的权限 -->
+	<delete id="del" parameterType="map">
+		delete from roleauthority where roleid=#{roleid}
+	</delete>
+	<!-- 查询某一角色下的权限 -->
+	<select id="selAuthorityID" parameterType="String" resultType="hashMap">
+		select AuthorityID from roleauthority where roleid=#{roleid}
+	</select>
+	<!-- 查询该用户拥有的权限放到session中 -->
+	<select id="selAuthorityByUserId" parameterType="String" resultType="String">
+		select distinct(ra.AuthorityID) from roleauthority ra LEFT JOIN role r on r.roleId=ra.roleId 
+		LEFT JOIN userrole ur on ur.roleId=r.roleId
+		where ur.userId=#{userId}
+	</select>
+	
+</mapper>

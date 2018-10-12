@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="orderCartDao">
+<!-- 订单 -->
+	<!-- 获取已购列表 -->
+	<select id="getOrders" parameterType="hashmap" resultType="hashmap">
+		SELECT * from (
+			SELECT oi.orderId,oi.id,oi.productid,oi.producttype,oi.productpic,oi.productname,oi.buyprice,oi.price,oi.count,u.nickName,u.realname,u.userUrl,
+				DATE_FORMAT(o.addtime,'%Y-%m-%d %T') addtime,oi.subType,bo.desc planDesc,bo.id as bookId,
+				<if test="producttype==2">
+					CASE WHEN bo.ebookPrice>0 THEN 
+						CASE (select count(0) from orderitem ot 
+							LEFT JOIN `order` o on ot.orderId=o.id
+							LEFT join wechat_userinfo w on w.openId=o.openId
+							where FIND_IN_SET(oi.desc,ot.`desc`)>0 
+							and (o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId}))
+							and ot.producttype=16) 
+						WHEN 0 THEN 0 ELSE 1 END
+					ELSE 1 END AS isbuy,
+					(select count(0) from book bo join documentfinal d on bo.period=d.IssueOfPublication where bo.id=oi.productid) status,
+				</if>
+				o.orderstatus,oi.desc
+				FROM `orderitem` oi
+				LEFT JOIN `order` o on oi.orderId=o.id
+				left join ondemand od on oi.ondemandId=od.ondemandId
+				left join ondemand_teacher ot on od.ondemandId=ot.ondemandId
+				LEFT JOIN userinfo u on ot.teacherId=u.userId
+				LEFT join wechat_userinfo w on w.openId=o.openId
+				LEFT JOIN book bo on oi.productid = bo.id
+				where o.paystatus=1 
+				and (o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId}))
+				and oi.producttype=#{producttype} and oi.subType<![CDATA[!=5]]>
+		UNION ALL
+			SELECT  oi.orderId,oi.id,oi.productid,oi.producttype,oi.productpic,oi.productname,oi.buyprice,oi.price,oi.count,u.nickName,u.realname,u.userUrl,
+				DATE_FORMAT(o.addtime,'%Y-%m-%d %T') addtime,oi.subType,bo.desc planDesc,bo.id as bookId,
+				<if test="producttype==2">
+					CASE WHEN bo.ebookPrice>0 THEN 
+						CASE (select count(0) from orderitem ot 
+							LEFT JOIN `order` o on ot.orderId=o.id
+							LEFT join wechat_userinfo w on w.openId=o.openId
+							where FIND_IN_SET(oi.desc,ot.`desc`)>0 
+							and (o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId}))
+							and ot.producttype=16) 
+						WHEN 0 THEN 0 ELSE 1 END
+					ELSE 1 END AS isbuy,
+					(select count(0) from book bo join documentfinal d on bo.period=d.IssueOfPublication where bo.id=oi.productid) status,
+				</if>
+				o.orderstatus,oi.desc
+				FROM `orderitem` oi
+				LEFT JOIN `order` o on oi.orderId=o.id
+				left join ondemand od on oi.ondemandId=od.ondemandId
+				left join ondemand_teacher ot on od.ondemandId=ot.ondemandId
+				LEFT JOIN userinfo u on ot.teacherId=u.userId
+				LEFT join wechat_userinfo w on w.openId=o.openId
+				LEFT JOIN book bo on oi.productid = bo.id
+				where o.paystatus=1
+				and (o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId}))
+				and oi.producttype=#{producttype} and oi.subType=5
+		) t
+		order by t.addTime desc
+		<if test="start!=null and pageSize!=null">
+		limit #{start},#{pageSize}
+		</if>
+	</select>
+	<select id="getOrderCount" resultType="long" parameterType="hashmap">
+		SELECT count(0) FROM `orderitem` oi
+		LEFT JOIN `order` o on oi.orderId=o.id
+		left join ondemand od on oi.ondemandId=od.ondemandId
+		left join ondemand_teacher ot on od.ondemandId=ot.ondemandId
+		LEFT JOIN userinfo u on ot.teacherId=u.userId
+		LEFT join wechat_userinfo w on w.openId=o.openId
+		where o.paystatus=1 
+		and (o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId}))
+		and oi.producttype=#{producttype}
+	</select>
+	<!-- 生成订单 -->
+	<insert id="saveOrder" parameterType="hashmap">
+		<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="orderId">    
+          SELECT LAST_INSERT_ID() AS id 
+	    </selectKey>
+		insert into `order` (orderno,addtime,totalprice,userId,
+		<if test="paystatus!=null">
+			paystatus,
+		</if>
+		<if test="orderstatus!=null">
+			orderstatus,
+		</if>
+		<if test="receivername!=null and receiverCity!=null">
+			receivername,receiverphone,receiverProvince,receiverCity,receiverCounty,receiverAddress,postage,
+		</if>
+		ordertype,couponId,voucherId,voucherprice,couponprice)
+		values(#{orderno},now(),#{totalprice},#{userId},
+		<if test="paystatus!=null">
+			#{paystatus},
+		</if>
+		<if test="orderstatus!=null">
+			#{orderstatus},
+		</if>
+		<if test="receivername!=null and receiverCity!=null">
+			#{receivername},#{receiverphone},#{receiverProvince},#{receiverCity},#{receiverCounty},#{receiverAddress},#{postage},
+		</if>
+		#{ordertype},#{couponId},#{voucherId},#{voucherprice},#{couponprice})
+	</insert>
+	<!-- 添加订单子项 -->
+	<insert id="saveOrderItem" parameterType="hashmap">
+		<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="orderitemId">    
+          SELECT LAST_INSERT_ID() AS id 
+	    </selectKey>
+		insert into orderitem (orderno,orderId,productid,productname,productpic,count,price,buyprice,producttype
+		<if test="receivername!=null and receiverCity!=null">
+		,receivername,receiverphone,receiverProvince,receiverCity,receiverCounty,receiverAddress
+		</if>
+		,ondemandId,subType)
+		values(#{orderno},#{orderId},#{productId},#{productname},#{productpic},#{count},#{price},#{buyprice},#{ordertype}
+		<if test="receivername!=null and receiverCity!=null">
+			,#{receivername},#{receiverphone},#{receiverProvince},#{receiverCity},#{receiverCounty},#{receiverAddress}
+		</if>
+		,#{productId},#{subType})
+	</insert>
+	<!-- 批量添加赠品到订单项-->
+	<insert id="bathInsertOrderItem" parameterType="hashMap">
+		insert into orderitem (orderno,orderId,productid,productname,productpic,count,price,buyprice,producttype,ondemandId,
+		<if test="receivername!=null and receiverCity!=null">
+			receivername,receiverphone,receiverProvince,receiverCity,receiverCounty,receiverAddress,
+		</if>
+		subType,`desc`) values
+		<foreach collection="list" item="item" separator=",">
+			(#{orderno},#{orderId},#{item.productid},#{item.productname},#{item.productpic},#{count},#{item.price},0,#{item.productType},#{item.productid},
+			<if test="receivername!=null and receiverCity!=null">
+				#{receivername},#{receiverphone},#{receiverProvince},#{receiverCity},#{receiverCounty},#{receiverAddress},
+			</if>
+			#{subType},#{desc})
+		</foreach>
+	</insert>
+	<!-- 查询订单信息 -->
+	<select id="selectPaylogMsg" resultType="hashmap" parameterType="hashmap">
+		select * from paylog where id=#{paylogId}
+	</select>
+	<!-- 添加支付记录 -->
+	<insert id="insertPaylog" parameterType="hashmap">
+		<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="paylogId">    
+          SELECT LAST_INSERT_ID() AS id 
+	    </selectKey>
+		insert into paylog (payer,source,sourceId,payTime,price,orderNo)
+		values (#{userId},1,#{orderId},now(),#{totalprice},#{orderno})
+	</insert>
+	<!-- 删除用户未支付订单 -->
+	<delete id="deleteUserOrder" parameterType="hashmap">
+		delete `order`,orderitem from `order` 
+		left join orderitem on `order`.id = orderitem.orderId AND `order`.ordertype=orderitem.producttype
+		WHERE `order`.userId=#{userId} AND `order`.paystatus=0 AND `order`.ordertype=#{ordertype} 
+		AND orderitem.producttype=#{ordertype} AND orderitem.productid=#{productId}
+	</delete>
+	<!-- 查询订单 -->
+	<select id="selOrderList" parameterType="int" resultType="hashmap">
+		select o.id orderId,IFNULL(p.id,0) payLogId,o.orderno,o.totalprice,IFNULL(o.postage,0) postage,
+		IFNULL(p.price,0) payprice,o.deliverstatus,
+		o.orderstatus,o.paystatus,(select count(0) from orderitem oi where oi.orderId=o.id) itemCount,
+		(select IFNULL(count(0),0) isHasInvoice from invoice where orderId=o.id and deliveryStatus!=1) isHasInvoice
+		from `order` o 
+		LEFT join wechat_userinfo w on w.openId=o.openId
+		LEFT JOIN paylog p on p.sourceId=o.id and p.payer=o.userId and p.orderNo=o.orderno
+		where 
+		(o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId}))
+		and o.isDel=0  
+		<if test="orderId!=null and orderId!=''">
+			and o.id=#{orderId}
+		</if>
+		<if test="orderStatus!=-1">
+			and o.orderstatus=#{orderStatus}
+		</if>
+		ORDER BY o.addtime desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+		
+	</select>
+	<!-- 查询子订单 -->
+	<select id="selOrderItem" parameterType="String" resultType="hashmap">
+		select DISTINCT o.id itemId,o.productname,o.productpic,o.count,CASE o.producttype WHEN 1 THEN '商品' WHEN 2 THEN '期刊杂志'
+		WHEN 4 THEN '点播课程' WHEN 8 THEN '直播课程' WHEN 16 THEN '电子书' end goodsType,o.productpic itemImg,
+		ifnull(o.price,0) yuanjia,ifnull(o.buyprice,0) buyprice,o.productid,
+		case when o.producttype = 16 then (select period from book where id = o.productid) else o.productid end period,
+		o.subType,o.producttype producttypes,o.deliverstatus,
+		(select IFNULL(count(0),0) isHasInvoice from invoice where orderItemId=o.id and deliveryStatus!=1) isHasInvoice
+		,io.expressNum,e.`name` delivername
+		from  orderitem o
+		left join invoiceandorder i on o.id = i.orderItemId
+		left join invoice io on i.invoiceId = io.Id
+		LEFT JOIN expresscompany e on io.expressId = e.Id
+		where o.orderId=#{orderId} and o.subType <![CDATA[!=5]]>
+	</select>
+	
+	<!-- 查询赠送的子订单 -->
+	<select id="selOrderItemListForZs" parameterType="hashmap" resultType="hashmap">
+		select o.id itemId,o.productname,o.productpic,o.count,CASE o.producttype WHEN 1 THEN '商品' WHEN 2 THEN '期刊杂志'
+		WHEN 4 THEN '点播课程' WHEN 8 THEN '直播课程' WHEN 16 THEN '电子书' end goodsType,o.productpic itemImg,
+		ifnull(o.price,0) yuanjia,ifnull(o.buyprice,0) buyprice,o.productid,
+		case when o.producttype = 16 then (select period from book where id = o.productid) else o.productid end period,
+		o.subType,o.producttype producttypes,o.deliverstatus,
+		(select IFNULL(count(0),0) isHasInvoice from invoice where orderItemId=o.id and deliveryStatus!=1) isHasInvoice,`desc`
+		,io.expressNum,e.`name` delivername
+		from  orderitem o
+		left join invoiceandorder i on o.id = i.orderItemId
+		left join invoice io on i.invoiceId = io.Id
+		LEFT JOIN expresscompany e on io.expressId = e.Id
+		where o.subType=5
+		<if test="not idList.isEmpty">
+			AND o.`desc`  IN
+			<foreach collection="idList" item="item" open="(" separator="," close=")">
+				#{item}
+			</foreach>
+		</if>
+	</select>
+	
+	<!-- 通过已购电子书订单项id获取多期电子书列表 -->
+	<select id="getEbookListById" parameterType="int" resultType="hashmap">
+		select p.id ,pi.`name`,p.`year`,p.describes
+		,(SELECT ot.productpic from orderitem ot where ot.id=#{itemId}) as productpic,
+		(select count(0) from documentfinal d where d.IssueOfPublication=p.id) as status
+		 from publishingplan p 
+		LEFT JOIN periodical pi on p.periodicalId = pi.id
+		where FIND_IN_SET(p.id,(SELECT oi.`desc` from orderitem oi where oi.id=#{itemId}))
+	</select>
+	<!-- 查询订单数量 -->
+	<select id="selOrderCount" parameterType="hashmap" resultType="long">
+		select count(0) from `order` o
+		LEFT join wechat_userinfo w on w.openId=o.openId
+		 where 
+		(o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId}))
+		and isDel=0
+		<if test="orderStatus!=-1">
+			and orderstatus=#{orderStatus}
+		</if>
+	</select>
+	<!-- 查询图片列表 -->
+	<!-- <select id="selImg" parameterType="String" resultType="String">
+		select productpic from orderitem where orderId=#{orderId}
+	</select> -->
+	<!-- 删除订单 -->
+	<update id="delUserOrder" parameterType="hashmap">
+		update `order` set isDel=1 where id=#{orderId} and userId=#{userId}
+	</update>
+	<!-- 取消订单 -->
+	<update id="sureReceived" parameterType="hashmap">
+		update `order` set orderstatus=#{orderstatus} where id=#{orderId} and userId=#{userId}
+	</update>
+	<!-- 查询订单详情 -->
+	<select id="selectOrderDetail" resultType="hashmap" parameterType="hashmap">
+		SELECT o.id,o.orderno,DATE_FORMAT(o.addtime,'%Y-%m-%d %T') addtime,p.methodName,DATE_FORMAT(pl.payTime,'%Y-%m-%d %T') payTime,
+		o.receivername,o.receiverphone,o.receiverAddress,o.delivername,o.delivercode,o.totalprice,ifnull(o.postage,0) postage,ifnull(pl.price,o.totalprice) payprice,o.ordertype,
+		o.orderstatus,o.receiverProvince,o.receiverCity,o.receiverCounty,c.jianprice,c.`name`,
+		v.name voucherName,o.voucherprice voucherPrice,pl.id payLogId,o.deliverstatus,
+		(select IFNULL(count(0),0) isHasInvoice from invoice where orderId=o.id and deliveryStatus!=1) isHasInvoice
+		from `order` o
+		LEFT join  coupon_user cu on o.couponId= cu.id
+		LEFT join coupon c on cu.couponId= c.Id
+		LEFT join voucher_user vu on o.voucherId = vu.id
+		LEFT join voucher v on vu.voucherId = v.Id 
+		LEFT JOIN paymethod p on p.id=o.paytype
+		LEFT join wechat_userinfo w on w.openId=o.openId
+		LEFT JOIN paylog pl on pl.sourceId=o.id and pl.source=1 <!-- and pl.payer=#{userId} -->
+		where o.id=#{orderId}
+		<!-- (o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId})) -->
+	</select>
+	<!-- 查询订单子项 -->
+	<select id="selectItem" resultType="hashmap" parameterType="String">
+		select od.id,od.productname,od.productid,od.deliverstatus,od.productpic,od.`desc`,od.count,od.buyprice,o.totalprice,od.producttype producttypes from orderitem od
+		LEFT JOIN `order` o on od.orderId = o.id
+		where orderId=#{_parameter}
+	</select>
+	<!-- 查询订单子项通过订单id（期刊直接支付） -->
+	<select id="selectItembyOrderId" resultType="hashmap" parameterType="String">
+		select od.id,od.productname,od.productpic,od.productid,od.count,od.buyprice,o.totalprice from orderitem od
+		LEFT JOIN `order` o on od.orderId = o.id
+		where orderId=#{orderId}
+	</select>
+	<!-- 查询期次id -->
+	<select id="selectQiCi" resultType="hashmap" parameterType="hashmap">
+		select p.year,p.totalPeriod,p.describes,pd.name from publishingplan p
+		left join periodical pd on pd.id=p.periodicalId
+		 where p.id in 
+		<foreach collection="descs" index="index" separator="," item="item" open="(" close=")">
+			#{item}
+		</foreach>
+	</select>
+	<!-- 查询期次和购买数量 -->
+	<select id="selQiciAndCount" parameterType="String" resultType="hashmap">
+		select `desc` qici,count buyCount from shopcart where id=#{str}
+	</select>
+	<!-- 查询book中的库存 -->
+	<select id="selQiciKucun" parameterType="String" resultType="hashmap">
+		select stock,name from book where period=#{qiciIds} 
+	</select>
+	<!-- 订单确认收货(期次) -->
+	<update id="updOrderQici" parameterType="hashmap">
+		update invoice i
+		LEFT JOIN invoiceandorder ic on i.Id = ic.invoiceId
+		LEFT JOIN orderItem ot on ic.orderItemId=ot.id
+		LEFT JOIN `order` o on ot.orderId = o.id
+		set deliveryStatus=1
+		where FIND_IN_SET(i.Id,#{invoiceId}) and o.userId=#{userId}
+	</update>
+	<!-- 修改订单项状态为已完成 -->
+	<update id="updOrderitemStatus" parameterType="hashmap">
+		update orderitem ot
+		LEFT JOIN `order` o on ot.orderId = o.id
+		set ot.deliverstatus = 3
+		where ot.id=#{orderitemId} and o.userId=#{userId}
+	</update>
+	<!-- 修改订单状态为已完成 -->
+	<update id="updOrderStatus" parameterType="hashmap">
+		update `order` o
+		set o.orderstatus = 5
+		where o.id=#{orderId} and o.userId=#{userId}
+	</update>
+	<!-- 通过发货单id获取当前订单项的id -->
+	<select id="selOrderItemByInvoiceId" parameterType="hashmap" resultType="int">
+		select orderItemId from  invoice where  FIND_IN_SET(Id,#{invoiceId})
+	</select>
+	<!-- 看看当前订单子项中是否所有期次商品都已收货 -->
+	<select id="isAllOrderitem" parameterType="hashmap" resultType="int">
+		SELECT CASE WHEN COUNT(1)>0 THEN 0 ELSE 1 END isAll 
+		FROM publishingplan p
+		WHERE EXISTS ( SELECT 1 FROM orderitem ot JOIN `order` o ON ot.orderId=o.id JOIN book b ON ot.productId=b.id WHERE FIND_IN_SET(p.id,b.`desc`)>0 AND ot.id=#{orderitemId} AND o.userId=#{userId})
+		AND NOT EXISTS(SELECT 1 FROM invoice i JOIN invoiceandorder io ON i.id=io.invoiceId WHERE io.qiciId=p.id AND io.orderitemId=#{orderitemId} AND i.deliveryStatus=1)
+	</select>
+	<!-- 看看当前订单中所有子订单是否存在没有收货的 -->
+	<select id="isNotAllOrder" parameterType="hashmap" resultType="int">
+		SELECT count(1) FROM orderitem WHERE deliverstatus <![CDATA[<>3]]> AND orderId=#{orderId}
+	</select>
+	<!-- 查询收货的期刊 -->
+	<select id="getInvoiceList" parameterType="hashmap" resultType="hashmap">
+		<choose>
+			<when test="status!=null and status==2">
+				SELECT tt.id,CASE WHEN t.sumType=0 THEN t.productname ELSE  tt.`name` END AS name,
+				tt.picture AS picture,t.count
+				FROM(
+					SELECT b.`desc`,o.id,oi.productpic,oi.productname,oi.count,oi.id as orderitemId,b.sumType
+					FROM `order` o
+					JOIN orderitem oi ON o.id=oi.orderId
+					JOIN book b ON oi.productId=b.id
+				)t LEFT JOIN (
+					SELECT p.id,IFNULL(b.`name`,CONCAT(pc.`name`,p.year,p.describes))AS name,b.picture
+					FROM publishingplan p
+					LEFT JOIN book b ON p.id=b.period AND b.sumType=0
+					LEFT JOIN periodical pc on p.periodicalId = pc.id
+				)tt ON FIND_IN_SET(tt.id,t.`desc`)>0
+				
+				WHERE t.id=#{orderId}
+				AND NOT EXISTS(
+					SELECT 1 FROM invoiceandorder io WHERE tt.id=io.qiciId AND io.orderitemId=t.orderitemId
+				)
+				ORDER BY tt.id ASC
+			</when>
+			<otherwise>
+				SELECT iv.Id AS invoiceId,oi.subType,e.`name` AS expressname,DATE_FORMAT(iv.IssueTime,'%Y-%m-%d %T') time,iv.expressNum,IFNULL(b.`name`,oi.productname) AS name,IFNULL(b.picture,oi.productpic) AS picture,oi.count
+				FROM orderitem oi
+				JOIN `order` o ON oi.orderId=o.id
+				JOIN invoiceandorder io ON oi.id=io.orderItemId
+				JOIN invoice iv ON io.invoiceId=iv.Id
+				LEFT JOIN book b ON b.period = io.qiciId AND b.sumType=0
+				LEFT JOIN expresscompany e ON e.Id=iv.expressId
+				WHERE oi.orderId=#{orderId} AND iv.deliveryStatus=#{status}
+				ORDER BY iv.Id DESC
+			</otherwise>
+		</choose>
+	</select>
+	<!-- 通过运单id获取运单详情 -->
+	<select id="getInvoiceById" parameterType="hashmap" resultType="hashmap">
+		select b.`name`,i.expressNum,DATE_FORMAT(i.IssueTime,'%Y-%m-%d %T') time,b.picture,io.goodsCount count from invoiceandorder io
+		LEFT JOIN book b on io.qiciId=b.period
+		LEFT JOIN invoice i on io.invoiceId=i.Id
+		LEFT JOIN `order` o on o.id=io.orderId
+		where io.invoiceId=#{invoiceId} and o.userId=#{userId} and b.sumType=0
+	</select>
+	<!-- 取消订单查询是否使用了代金券和优惠券 -->
+	<select id="selHasCoupon" parameterType="hashmap" resultType="hashmap">
+		select ifnull(voucherId,0) voucherId,ifnull(couponId,0)couponId from `order`where userId = #{userId} and id=#{orderId}
+	</select>
+	<!-- 修改优惠券为未使用 -->
+	<update id="updCoupon" parameterType="int">
+		update coupon_user set usestate = 0 where id = #{couponId}
+	</update>
+	<!-- 修改代金券为未使用 -->
+	<update id="updVoucher" parameterType="int">
+		update voucher_user set usestate = 0 where id = #{voucherId}
+	</update>
+	<!-- 修改价格 -->
+	<update id="upCartPrice" parameterType="hashmap">
+		update shopcart set price = #{price} where id = #{id}
+	</update>
+	<!-- 限时特价修改订单子项为付款的金额 -->
+	<update id="updOrderitemPrice" parameterType="hashmap">
+		update orderitem set buyprice=#{buyprice} where id = #{itemId}
+	</update>
+	<!-- 限时特价修改订单总金额 -->
+	<update id="updOrdertotalPrice" parameterType="hashmap">
+		UPDATE `order` o,orderitem ot 
+			set o.totalprice=(select SUM(buyprice*count) from orderitem where orderId=o.id  and subType!=5)
+		where o.id = ot.orderId and o.id = #{orderId} 
+	</update>
+	<update id="updOrdertotalPriceByPostage" parameterType="hashmap">
+		update `order` set totalprice = totalprice+postage where id = #{orderId}
+	</update>
+	<!-- 限时特价修改paylog应付金额 -->
+	<update id="updPaylogDisPrice" parameterType="string">
+		update `paylog` p,`order` o,orderitem ot set p.price=o.totalprice
+		where p.sourceId=o.id 
+		and ot.orderId = o.id and p.source=1 and p.sourceId=#{orderId}
+	</update>
+	
+</mapper>

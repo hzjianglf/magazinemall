@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="commentDao">
+	
+	
+	<!-- 查询条件 -->
+	<sql id="sql_where">
+		<!-- <if test="status!=null and status!=''">
+			and c.status=#{status}
+		</if> -->
+		<if test="poster!=null and poster!=''">
+			and u.realname=like "%"#{poster}"%"
+		</if>
+		<if test="content!=null and content!=''">
+			and c.content like "%"#{content}"%"
+		</if>
+		<if test="startDate!=null and startDate!='' and endDate!=null and endDate!=''">
+			and c.datetime between STR_TO_DATE(#{startDate},"%Y-%m-%d") and STR_TO_DATE(#{endDate},"%Y-%m-%d")
+		</if>
+	</sql>
+	<!-- 评论列表 -->
+	<select id="selCommentList" resultType="hashmap" parameterType="hashmap">
+		select c.id,c.content,DATE_FORMAT(c.dateTime,"%Y-%m-%d %T") dateTime,c.status,case c.commentType when 1 then '专家' when 2 then '课程' when 3 then '期刊'
+		when 4 then '商品' end commentType,
+		ifnull(u.realname,u.nickName) poster from comment c 
+		LEFT JOIN userinfo u on c.poster=u.userId 
+		where 1=1 and c.status=#{status}
+		<include refid="sql_where"></include>
+		ORDER BY c.datetime desc
+		limit #{start},#{pageSize}
+	</select>
+	<!-- count -->
+	<select id="selCommentCount" resultType="long" parameterType="hashmap">
+		select count(c.id) from comment c 
+		LEFT JOIN userinfo u on c.poster=u.userId 
+		where 1=1 and c.status=#{status}
+		<include refid="sql_where"></include>
+	</select>
+	<!-- 修改状态 -->
+	<update id="updateStatus" parameterType="hashmap"> 
+		update comment set status=#{status} where id=#{id}
+	</update>
+	<!-- 删除评论 -->
+	<delete id="deleteComment" parameterType="hashmap">
+		delete from comment where id=#{id}
+	</delete>
+	<!-- 批量修改启动或者禁用 -->
+	<update id="modifyStatus" parameterType="map">
+		update comment set status = #{status} where id in
+		<foreach collection="id" index="index" separator="," item="item" open="(" close=")">
+			#{item}
+		</foreach>
+	</update>
+	<!-- 批量删除评论 -->
+	<delete id="deleteids" parameterType="map">
+		delete from comment  where id in
+		<foreach collection="id" index="index" separator="," item="item" open="(" close=")">
+			#{item}
+		</foreach>
+	</delete>
+	<!-- 审核 -->
+	<update id="toExamine" parameterType="hashmap">
+		update comment set status=#{status},remark=#{remark} where id=#{id}
+	</update>
+	<!-- 取消审核 -->
+	<update id="cancelExamine" parameterType="hashmap">
+		update comment set status=0 where id=#{id}
+	</update>
+</mapper>

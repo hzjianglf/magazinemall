@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="classtypeDao">
+	
+	
+	<sql id="sql_where">
+		<if test="type!=null and type!=''">
+			and a.type=#{type}
+		</if>
+		<if test="name!=null and name!=''">
+			and a.name like "%"#{name}"%"
+		</if>
+		<if test="userName!=null and userName!=''">
+			and u.realname like "%"#{userName}"%"
+		</if>
+		<if test="status!=null and status!=''">
+			and a.status=#{status}
+		</if>
+		<if test="ids != null and ids != ''">
+			and a.id in 
+			<foreach collection="id" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+	</sql>
+	<!-- 查询分类count -->
+	<select id="selectClasstypeCount" resultType="long" parameterType="hashmap">
+		select count(a.id) from assortment a
+		LEFT JOIN userinfo u on u.userId=a.userId
+		where 1=1
+		<include refid="sql_where"></include>
+	</select>
+	<!-- 查询分类列表 -->
+	<select id="selectClasstypeList" resultType="hashmap" parameterType="hashmap">
+		select a.id,a.name,CASE a.Isdisplay WHEN 1 THEN '是' WHEN 0 THEN '否' END Isdisplay,u.realname,
+		a.`status`,a.hierarchy,(SELECT name from assortment at where at.id=a.parentId) as parentName,date_format(a.inputDate,'%Y-%m-%d %T') inputDate,
+		a.orderIndex
+		from assortment a
+		LEFT JOIN userinfo u on u.userId=a.userId
+		where 1=1
+		<include refid="sql_where"></include>
+		order by a.hierarchy ASC,a.orderindex ASC,a.inputDate desc
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 更改状态 -->
+	<update id="updateStatus" parameterType="hashmap">
+		update assortment set status=#{status} where id=#{id}
+	</update>
+	<!-- 批量启用禁用 -->
+	<update id="batchUpStatus" parameterType="hashmap">
+		update assortment set status=#{status} where id in
+		<foreach collection="id" index="index" separator="," item="item" open="(" close=")">
+			#{item}
+		</foreach>
+	</update>
+	<!-- 删除 -->
+	<delete id="delete" parameterType="hashmap">
+		delete from assortment where id=#{id}
+	</delete>
+	<!-- 批量删除 -->
+	<delete id="deleteAll" parameterType="hashmap">
+		delete from assortment where id in
+		<foreach collection="id" index="index" separator="," item="item" open="(" close=")">
+			#{item}
+		</foreach>
+	</delete>
+	<!-- 查询分类 -->
+	<select id="selectTypelist" resultType="hashmap" parameterType="hashmap">
+		select id,parentId pId,name,hierarchy from assortment where type=#{type} order by orderIndex asc,inputDate desc
+	</select>
+	<!-- 根据id查询分类 -->
+	<select id="findById" resultType="hashmap" parameterType="hashmap">
+		select a.*,(SELECT name from assortment at where at.id=a.parentId) as parentName from assortment a where a.id=#{id}
+	</select>
+	<!-- 编辑 -->
+	<update id="updateMsg" parameterType="hashmap">
+		update assortment set name=#{name},parentId=#{parentId},Isdisplay=#{Isdisplay}
+		<if test="orderIndex!=null and orderIndex!=''">
+			,orderIndex=#{orderIndex}
+		</if>
+		,status=#{status} where id=#{id}
+	</update>
+	<!-- 新增 -->
+	<insert id="addMsg" parameterType="hashmap">
+		insert into assortment (name,parentId,hierarchy,Isdisplay,status,userId,inputDate,type<if test="orderIndex!=null and orderIndex!=''">,orderIndex</if>)
+		values(#{name},#{parentId},#{hierarchy},#{Isdisplay},#{status},#{userId},now(),#{type}<if test="orderIndex!=null and orderIndex!=''">,#{orderIndex}</if>)
+	</insert>
+	<!-- 查询导出数据 -->
+	<select id="selectDownLoad" resultType="hashmap" parameterType="hashmap">
+		select a.id,a.name,CASE a.Isdisplay WHEN 1 THEN '是' WHEN 0 THEN '否' END Isdisplay,u.realname,
+		case a.`status` when 1 then '启用' when 0 then '禁用' end status,a.hierarchy,(SELECT name from assortment at where at.id=a.parentId) as parentName,
+		date_format(a.inputDate,'%Y-%m-%d %T') inputDate
+		from assortment a
+		LEFT JOIN userinfo u on u.userId=a.userId
+		where 1=1
+		<include refid="sql_where"></include>
+		order by a.inputDate desc
+	</select>
+	<!-- 根据类型查询分类 -->
+	<select id="selClassTypeByName" resultType="hashmap" parameterType="Integer">
+		select id,parentId pId,name,hierarchy from assortment where type=#{_parameter}
+	</select>
+	
+</mapper>

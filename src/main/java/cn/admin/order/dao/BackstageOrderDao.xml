@@ -1,0 +1,596 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="orderDao">
+	
+	<sql id="orderWhere">
+		<if test="orderStatus!=null and orderStatus!=''">
+			<if test="orderStatus==8">and o.deliverstatus=2</if>
+			<if test="orderStatus!=8">and o.orderstatus = #{orderStatus}</if>
+		</if>
+		<if test="publish1!=null and publish1!=''">
+			and (FIND_IN_SET(#{publish1},oi.`desc`) 
+			<if test="publish2!=null and publish2!=''">or FIND_IN_SET(#{publish2},oi.`desc`)</if>
+			) and o.openId is NULL
+		</if>
+		<!-- <if test="publish!=null and publish!=''">
+			and FIND_IN_SET(p.id,#{publish})
+		</if> -->
+		<if test="orderNum!=null and orderNum!=''">
+			and o.orderno = #{orderNum}
+		</if>
+		<if test="type!=null and type!=''">
+			and om.type = #{type}
+		</if>
+		<if test="ondemandId!=null and ondemandId!=''">
+			and om.ondemandId = #{ondemandId}
+		</if>
+		<if test="goodsName!=null and goodsName!='' " >
+			and oi.productname like "%"#{goodsName}"%"
+		</if>
+		<if test="userName!=null and userName!='' " >
+			and ( ui.nickName like "%"#{userName}"%" or ui.telenumber = #{userName} or w.nickName like "%"#{userName}"%")
+		</if>
+		<if test="startTime!=null and startTime!='' ">
+			and date_format(o.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+		</if>
+		<if test="endTime!=null and endTime!='' ">
+			and date_format(o.addtime, '%Y-%m-%d') &lt;= #{endTime}
+		</if>
+		<if test="listType!=null and listType!='' and listType==1">
+			and oi.producttype <![CDATA[&1>0]]> 
+		</if>
+		<if test="listType!=null and listType!='' and listType==2">
+			and (oi.producttype <![CDATA[&2>0]]> or oi.producttype <![CDATA[&16>0]]>)
+		</if>
+		<if test="listType!=null and listType!='' and listType==3">
+			and oi.producttype <![CDATA[&4>0]]> 
+		</if>
+		<if test="listType!=null and listType!='' and listType==4">
+			and oi.producttype <![CDATA[&8>0]]> 
+		</if>
+		<if test="realname!=null and realname!=''">
+			and ui.realname like "%"#{realname}"%"
+		</if>
+	</sql>
+	
+	<!-- 查询订单的总条数 -->
+	<select id="selOrderCount" parameterType="hashmap" resultType="long">
+		select count(0) from `order` o
+		left join orderitem oi on oi.orderId=o.id
+		Left join ondemand om on om.ondemandId=oi.ondemandId
+		Left join userinfo ui on ui.userId=o.userId and ui.userType!=0
+		left join wechat_userinfo w on w.openId=o.openId
+		where o.isDel=0 <include refid="orderWhere"></include>
+	</select>
+	<!-- 查询订单信息 -->
+	<select id="selOrderList" parameterType="hashmap" resultType="hashmap">
+		select o.id id,o.orderno orderno,o.postage youfei,o.userId userId,date_format(o.addtime,"%Y-%m-%d %T") buyTime,
+		o.paystatus paystatus,o.deliverstatus deliverstatus,o.orderstatus status,
+		oi.productname productname,oi.buyprice buyprice,oi.count buycount,oi.deliverstatus orderItemDeliverstatus,
+		IFNULL(om.effective,'暂无') effectiveTime,om.name className,ui.realname userName,oi.buyprice*oi.count money,
+		ifnull(ui.nickName,ui.telenumber) nickName,ui.telenumber telenumber,
+		oi.subType
+		from `order` o
+		Left join orderitem oi on oi.orderId=o.id
+		Left join userinfo ui on ui.userId=o.userId 
+		Left join ondemand om on om.ondemandId=oi.ondemandId
+		left join wechat_userinfo w on w.openId=o.openId
+		where o.isDel=0 <include refid="orderWhere"></include>
+		order by o.addtime desc,o.orderno desc
+		limit #{start},#{pageSize}
+	</select>
+	<select id="selOndemandType" resultType="hashmap">
+		SELECT * FROM `assortment` where status=1 and type=1
+	</select>
+	<select id="selClassNameBytype" parameterType="int" resultType="hashmap">
+		SELECT * FROM `ondemand`where type=#{classtype}
+	</select>
+	<select id="selNickName" parameterType="string" resultType="string">
+		select w.nickname from `order` oo join wechat_userinfo w on oo.openId=w.openId where oo.orderno = #{orderno}
+	</select>
+	<select id="selNickNameByorderId" parameterType="string" resultType="string">
+		select w.nickname from `order` oo join wechat_userinfo w on oo.openId=w.openId where
+		oo.id = #{orderId}
+	</select>
+	<!-- 查询期刊订单 -->
+	<select id="selQiKanList" parameterType="hashmap" resultType="hashmap">
+		SELECT * FROM (
+			SELECT o.id id,o.orderno orderno,o.openId,o.paystatus paystatus,o.receivername,o.receiverphone,o.receiverProvince,o.receiverCity,ifnull(o.receiverAddress,'') receiverAddress,ifnull(o.receiverCounty,'') receiverCounty,oi.deliverstatus,o.orderstatus status,o.deliverstatus deliverstatus_o,
+			oi.productname productname,oi.id orderItemId,oi.buyprice buyprice,oi.count buycount,
+			ui.realname userName,ui.nickName,ui.telenumber telenumber,o.openId open,oi.producttype producttypes,
+			oi.buyprice*oi.count AS totalPrice,oi.subType,date_format(o.addtime,"%Y-%m-%d %T") as buyTime,w.nickName weiName,
+			CASE oi.producttype WHEN 2 THEN '纸媒' WHEN 16 THEN '电子' END goorsType,
+			(
+				SELECT count(1) 
+				FROM publishingplan pp
+				JOIN book b ON pp.id=b.period
+				WHERE FIND_IN_SET(pp.id,bk.`desc`)>0 AND oi.deliverstatus IN(0,2) AND o.orderstatus IN(2) AND o.paystatus=1
+				AND NOT EXISTS( SELECT 1 FROM invoiceandorder iao WHERE iao.qiciId=pp.id AND iao.orderItemId=oi.id)
+			) waitCount,
+			CASE WHEN oi.deliverstatus IN(0,2) AND o.orderstatus IN(2) AND o.paystatus=1 THEN 1 ELSE 0 END waitDeliv
+			FROM `order` o
+			LEFT JOIN orderitem oi ON oi.orderId=o.id
+			LEFT JOIN userinfo ui ON ui.userId=o.userId
+			LEFT JOIN book bk ON oi.productid=bk.id
+			LEFT JOIN publishingplan p on p.id=bk.period
+			LEFT JOIN periodical pl on p.periodicalId=pl.id
+			left join wechat_userinfo w on w.openId=o.openId
+			WHERE o.isDel=0
+			<include refid="orderWhere"></include>
+		<if test="ids!=null and ids!=''">
+			and  FIND_IN_SET(o.id,#{ids})
+		</if>
+			<choose>
+				<when test="sortType!=null and sortType==1">
+					order by o.addtime desc , o.orderno ASC
+				</when>
+				<otherwise>
+					order by o.addtime desc,o.orderno DESC
+				</otherwise>
+			</choose>
+		)t
+		<if test="needDelive!=null and needDelive==1">
+				WHERE waitCount>0
+		</if>
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 批量发货用到的sql -->
+	<select id="selBathQiciByitemId" parameterType="hashmap" resultType="string">
+		select `desc` from orderitem where id = #{orderItemId}
+	</select>
+	<!-- 批量发货查询期刊订单 -->
+	<select id="bathSend" parameterType="hashmap" resultType="hashmap">
+	<!-- "orderNo" :${orderno},
+		"orderId":${orderId},
+		"orderItem":${orderItemId},
+		"senderId":"1",
+		"sendAddressId":"3",
+		"expressId":$("#wuliuCompany").val(),
+		"expressNum":$("#wuliuNum").val(),
+		"receivedName":$("#s_userName").val(),
+		"receivedPhone":$("#s_phone").val(),
+		"publishPlanId":$("#qiciId").val(),
+		"province":$("#s_province").val(),
+		"city":$("#s_city").val(),
+		"county":$("#s_county").val(),
+		"detailAddress":$("#s_address").val(), 
+		"buyCount":${buyCount},
+		"qikanId":${productid} 
+		}, -->
+		SELECT * FROM (
+			SELECT o.id orderId,o.orderno orderno,o.orderstatus status,
+			oi.productname,
+			o.receivername receivedName,o.receiverphone,#{publish} publishPlanId,o.receiverProvince province,
+			o.receiverCity city,oi.id orderItemId,oi.id orderItem,o.receiverCounty county,oi.count buyCount,o.receiverAddress detailAddress,
+			ui.realname userName,ui.nickName,ui.telenumber telenumber,oi.productid qikanId,date_format(o.addtime,"%Y-%m-%d %T") as buyTime,
+			(
+				SELECT count(1) 
+				FROM publishingplan pp
+				JOIN book b ON pp.id=b.period
+				WHERE FIND_IN_SET(pp.id,bk.`desc`)>0 AND oi.deliverstatus IN(0,2) AND o.orderstatus IN(2) AND o.paystatus=1
+				AND NOT EXISTS( SELECT 1 FROM invoiceandorder iao WHERE iao.qiciId=pp.id AND iao.orderItemId=oi.id)
+			) waitCount,
+			CASE WHEN oi.deliverstatus IN(0,2) AND o.orderstatus IN(2) AND o.paystatus=1 THEN 1 ELSE 0 END waitDeliv
+			FROM `order` o
+			LEFT JOIN orderitem oi ON oi.orderId=o.id
+			LEFT JOIN userinfo ui ON ui.userId=o.userId
+			LEFT JOIN book bk ON oi.productid=bk.id
+			LEFT JOIN publishingplan p on p.id=bk.period
+			LEFT JOIN periodical pl on p.periodicalId=pl.id
+			WHERE o.isDel=0
+			<include refid="orderWhere"></include>
+			and NOT EXISTS(select 1 FROM invoiceandorder iao WHERE FIND_IN_SET(#{publish1},oi.`desc`) and iao.orderItemId=oi.id)
+			<if test="publish2!=null and publish2!=''">and
+			NOT EXISTS(select 1 FROM invoiceandorder iao WHERE FIND_IN_SET(#{publish2},oi.`desc`) and iao.orderItemId=oi.id)
+			</if>
+		<if test="ids!=null and ids!=''">
+			and  FIND_IN_SET(oi.id,#{ids})
+		</if>
+			<choose>
+				<when test="sortType!=null and sortType==1">
+					order by o.addtime desc , o.orderno ASC
+				</when>
+				<otherwise>
+					order by o.addtime desc,o.orderno DESC
+				</otherwise>
+			</choose>
+		)t
+				WHERE waitCount>0
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 批量发货查询期刊订单数量-->
+	<select id="selectBathSendQikanCount" parameterType="hashMap" resultType="long">
+		SELECT count(1) FROM(	
+			SELECT 
+				(
+					SELECT count(1) 
+					FROM publishingplan pp
+					JOIN book b ON pp.id=b.period
+					WHERE FIND_IN_SET(pp.id,bk.`desc`)>0 AND oi.deliverstatus IN(0,2) AND o.orderstatus IN(2) AND o.paystatus=1
+					AND NOT EXISTS( SELECT 1 FROM invoiceandorder iao WHERE iao.qiciId=pp.id AND iao.orderItemId=oi.id)
+				) waitCount
+				FROM `order` o
+				LEFT JOIN orderitem oi ON oi.orderId=o.id
+				LEFT JOIN userinfo ui ON ui.userId=o.userId
+				LEFT JOIN book bk ON oi.productid=bk.id
+				LEFT JOIN publishingplan p on p.id=bk.period
+				LEFT JOIN periodical pl on p.periodicalId=pl.id
+				WHERE o.isDel=0
+				<include refid="orderWhere"></include>
+				and NOT EXISTS(select 1 FROM invoiceandorder iao WHERE FIND_IN_SET(iao.qiciId,oi.`desc`) and iao.orderItemId=oi.id)
+				<if test="publish2!=null and publish2!=''">and
+					NOT EXISTS(select 1 FROM invoiceandorder iao WHERE FIND_IN_SET(#{publish2},oi.`desc`) and iao.orderItemId=oi.id)
+				</if>
+	)t
+				WHERE waitCount>0
+	</select>
+	<!-- 查询期刊订单数量-->
+	<select id="selectQikanCount" parameterType="hashMap" resultType="long">
+		SELECT count(1) FROM(	
+			SELECT 
+				(
+					SELECT count(1) 
+					FROM publishingplan pp
+					JOIN book b ON pp.id=b.period
+					WHERE FIND_IN_SET(pp.id,bk.`desc`)>0 AND oi.deliverstatus IN(0,2) AND o.orderstatus IN(2) AND o.paystatus=1
+					AND NOT EXISTS( SELECT 1 FROM invoiceandorder iao WHERE iao.qiciId=pp.id AND iao.orderItemId=oi.id)
+				) waitCount,w.nickName weiName
+				FROM `order` o
+				LEFT JOIN orderitem oi ON oi.orderId=o.id
+				LEFT JOIN userinfo ui ON ui.userId=o.userId
+				LEFT JOIN book bk ON oi.productid=bk.id
+				LEFT JOIN publishingplan p on p.id=bk.period
+				LEFT JOIN periodical pl on p.periodicalId=pl.id
+				left join wechat_userinfo w on w.openId=o.openId
+				WHERE o.isDel=0
+				<include refid="orderWhere"></include>
+		)t
+		<if test="needDelive!=null and needDelive==1">
+				WHERE waitCount>0
+		</if>
+	</select>
+	
+	<!-- 获取点播、直播订单详情 -->
+	<select id="selectOrderDetailForOndemand" parameterType="hashmap" resultType="hashmap">
+		 SELECT o.orderNo,o.postage, o.totalprice,o.orderstatus,DATE_FORMAT(o.addtime,'%Y-%m-%d %T') AS addTime,
+		 CONCAT(IFNULL(u.nickName,u.realname),'/',u.telenumber) userName,
+		 case o.paytype when 1 then '支付宝支付' when 3 then '支付宝支付'  when 4 then '支付宝支付' when 5 then '余额支付' else '微信支付'
+		 end payMethodName,
+		 l.status,DATE_FORMAT(l.payTime,'%Y-%m-%d %T') payTime
+		 FROM `orderitem` oi 
+		 LEFT JOIN `order` o ON oi.orderId=o.id 
+		 LEFT JOIN ondemand p ON oi.productId=p.ondemandId
+		 LEFT JOIN userinfo u ON o.userId=u.userId
+		 LEFT JOIN paylog l ON l.sourceId=o.id
+		 WHERE o.id=#{orderId}
+		 Limit 1
+	</select>
+	
+	<!-- 删除订单 -->
+	<update id="delOrderInfo" parameterType="String">
+		update `order` set isDel=1 where id=#{orderId}
+	</update>
+	
+	
+	<!-- ////////////////////////// 商品发货弹窗页查询内容 ///////////////////////// -->
+	<!-- 查询商品列表 -->
+	<select id="selShopList" parameterType="hashmap" resultType="hashmap">
+		select * from orderitem where orderId=#{orderId} and producttype <![CDATA[&1>0]]> 
+	</select>	
+	<!-- 查询商品订单详情 -->
+	<select id="selOrderDetail" parameterType="hashmap" resultType="hashmap">
+		select *,id orderId,date_format(addtime,"%Y-%m-%d %H:%i:%S") buyTime from `order` 
+		where id=#{orderId}
+	</select>
+	<!-- 查找所有刊物 -->
+	<select id="selPeriods" resultType="hashmap">
+		SELECT id,name FROM `periodical` ORDER BY inputDate desc
+	</select>
+	<select id="getPubByYear" parameterType="hashmap" resultType="hashmap">
+		SELECT * from publishingplan where year=#{year} and periodicalId=#{period}
+	</select>
+	<!-- 查询发货人的信息 -->
+	<select id="selSenderInfo" parameterType="hashmap" resultType="hashmap">
+		select * from deliveraddress where userId=#{sender} and userType=2 and isDel=0 order by isDefault desc
+	</select>
+	<!-- 查询物流公司 -->
+	<select id="selWuliuCompany" resultType="hashmap">
+		select * from expressCompany
+	</select>
+	<select id="selYears" resultType="string">
+		select DISTINCT `year` from publishingplan ORDER BY year DESC 
+	</select>
+	<!-- 修改收货人的信息 -->
+	<update id="updReceivInfo" parameterType="hashmap">
+		update `order` set receivername=#{receivedName},receiverphone=#{receivedPhone},receiverProvince=#{province},
+		receiverCity=#{city},receiverCounty=#{county},receiverAddress=#{detailAddress} where id=#{orderId}
+	</update>
+	<!-- 添加商品发货单 -->
+	<insert id="saveShopOrderInfo" parameterType="hashmap" useGeneratedKeys="true" keyProperty="invoiceId">
+		insert into invoice (serialNumber,orderNo,orderId,senderId,sendAddress,
+		expressId,expressNum,IssueRemarks,expressRemarks,IssueTime,goodsType,receivername,receiverphone,
+		receiverProvince,receiverCity,receiverCounty,receiverAddress) values
+		(#{serialNumber},#{orderNo},#{orderId},#{senderId},#{sendAddressId},
+		#{expressId},#{expressNum},#{remarks},#{wuliuRemarks},now(),#{goodsType},#{receivedName},#{receivedPhone},
+		#{province},#{city},#{county},#{detailAddress})
+	</insert>
+	<!-- 查询购买数量 -->
+	<select id="selBuyCount" parameterType="hashmap" resultType="Integer">
+		select count from orderitem where id=#{orderItemId}
+	</select>
+	<!-- 添加发货单关系表 -->
+	<insert id="addInvoiceAOrderInfo" parameterType="hashmap">
+		insert into invoiceAndOrder (invoiceId,orderId,orderItemId,goodsCount) values (#{invoiceId},#{orderId},#{orderItemId},#{buyCount}) 
+	</insert>
+	<!-- 修改子订单发货状态 -->
+	<update id="updOrderItemDeliverstatus" parameterType="hashmap">
+		update orderitem set deliverstatus=1 where id=#{orderItemId}
+	</update>
+	<!-- 查询大订单下是否还有期刊小订单未发货  -->
+	<select id="noDeliversOrderItem" parameterType="hashmap" resultType="Integer">
+		select count(0) from orderitem where orderId=#{orderId} and deliverstatus!=1 AND producttype=2
+	</select>
+	<!-- 修改订单发货状态 -->
+	<update id="updOrderDeliverstatus" parameterType="hashmap">
+		update `order` set deliverstatus=#{deliverstatus},orderstatus=#{orderstatus} where id=#{orderId}
+	</update>
+	
+	<!-- /////////////////////// 期刊发货详情方法  ////////////////////////-->
+	
+	<!-- 查询收货人的信息 -->
+	<select id="sqlDeliverQiKanFece" parameterType="hashmap" resultType="hashmap">
+		select oi.*,oi.id orderItemId,oi.count buyCount from orderitem oi where id=#{orderItemId} 
+	</select>
+	<!-- 查询待发货的期刊列表 -->
+	<select id="selDaifaQikan" parameterType="hashmap" resultType="hashmap">
+		SELECT DISTINCT pp.id planId,pp.periodicalId qikanId,pd.name,
+		pp.`year` qikanYear,pp.describes qici,IFNULL(b.picture,"") picture,b.id bookId,IFNULL(ot.count,(SELECT count from orderitem where id=#{orderItemId})) count, IFNULL(b.sumType,0) sumType
+		FROM publishingplan pp
+		LEFT JOIN periodical pd on pd.id=pp.periodicalId
+		left JOIN book b on b.period=pp.id
+	   	left join orderitem ot on ot.productid=b.id and ot.id=#{orderItemId}
+		WHERE IFNULL(b.sumType,0)=0 and 
+		EXISTS( SELECT 1 FROM orderitem JOIN book ON orderitem.productid=book.id WHERE FIND_IN_SET(pp.id,book.`desc`)>0 and orderitem.id=#{orderItemId})
+		AND NOT EXISTS(SELECT 1 FROM invoiceAndOrder iao WHERE iao.qiciId=pp.id AND iao.orderItemId=#{orderItemId})
+		ORDER BY pp.id ASC
+	</select>
+	<!-- 查询已发货的期刊列表 -->
+	<select id="selYifaQikan" parameterType="hashmap" resultType="hashmap">
+		SELECT pp.Id qiciId, pp.`year` publishYear,pp.describes qici,b.picture picture,ot.count,pd.name
+		FROM invoiceAndOrder iao
+		LEFT JOIN publishingplan pp on pp.id=iao.qiciId
+		LEFT JOIN periodical pd on pd.id=pp.periodicalId
+		LEFT JOIN book b on b.period=pp.id
+		LEFT JOIN orderitem ot on ot.id = iao.orderItemId
+		where iao.orderItemId=#{orderItemId}  AND b.sumType=0
+		ORDER BY pp.Id ASC
+	</select>
+	<!-- 添加期刊发货单信息 -->
+	<insert id="addInvoice" parameterType="hashmap" useGeneratedKeys="true" keyProperty="invoiceId">
+		insert into invoice (serialNumber,type,orderNo,orderId,orderItemId,senderId,sendAddress,
+		expressId,expressNum,IssueTime,goodsType,receivername,receiverphone,
+		receiverProvince,receiverCity,receiverCounty,receiverAddress) values
+		(#{serialNumber},#{type},#{orderNo},#{orderId},#{orderItem},#{senderId},#{sendAddressId},#{expressId},
+		#{expressNum},now(),2,#{receivedName},#{receivedPhone},#{province},#{city},#{county},#{detailAddress})
+	</insert>
+	<!-- 添加发货单关系表 -->
+	<insert id="addInvoiceAndOrder" parameterType="hashmap">
+		insert into invoiceAndOrder (invoiceId,orderId,orderItemId,qiciId,goodsCount) values
+		(#{invoiceId},#{orderId},#{orderItem},#{qiciId},#{buyCount})
+	</insert>
+	<!-- 查询发货单关系表中的已发货期次数量 -->
+	<select id="selQiciCount" parameterType="hashmap" resultType="Integer">
+		select count(0) from invoiceAndOrder where orderItemId=#{orderItem}
+	</select>
+	<!-- 查询订单项对应的期刊计划的总数 -->
+	<select id="selPlanCount" parameterType="hashmap" resultType="Integer">
+		SELECT count(0) FROM publishingplan pp 
+		WHERE EXISTS( SELECT 1 FROM orderitem oi JOIN book b ON oi.productid=b.id WHERE FIND_IN_SET(pp.id,b.`desc`)>0 and oi.id=#{orderItem})
+	</select>
+	<!-- 修改orderItem表中的发货状态 -->
+	<update id="updItemFHType" parameterType="hashmap">
+		update orderitem set deliverstatus=#{fahuoType} where id=#{orderItem}
+	</update>
+
+	
+	<!-- 通过刊物查找所有所属期次 -->
+	<select id="selPublishByPeriod" parameterType="int" resultType="hashmap">
+		SELECT CONCAT(p.`year`,pl.`name`,p.describes) name ,p.id from publishingplan p 
+		LEFT JOIN periodical pl on p.periodicalId=pl.id
+		where  pl.id=#{id} 
+		ORDER BY p.id desc
+	</select>
+	<!-- excel导出，先查询待发货的订单列表 -->
+	<select id="daiFHQKlist" parameterType="hashmap" resultType="hashmap">
+		<!-- select o.id id,o.orderno orderno,
+		oi.productname productname,pp.`year`,pp.describes,oi.receivername,oi.receiverphone,oi.receiverProvince,oi.receiverCity,
+		oi.receiverCounty,oi.receiverAddress,oi.count,oi.buyprice buyprice,oi.count*oi.buyprice totalPrice,date_format(o.addtime,"%Y-%m-%d") buyTime,
+		oi.id orderItemId,IFNULL(iad.invoiceId,0) isFH,IFNULL(bk.id,0) isBook	
+		from `order` o
+		Left join orderitem oi on oi.orderno=o.orderno 
+		LEFT JOIN publishingplan pp on pp.periodicalId=oi.productid
+		LEFT JOIN invoiceandorder iad on iad.qiciId=pp.id
+		LEFT JOIN book bk on bk.period=pp.id
+		where o.isDel=0 and oi.deliverstatus!=1 and IFNULL(iad.invoiceId,0)=0 and IFNULL(bk.id,0)>0 <include refid="orderWhere"></include>
+		and oi.id in 
+		<foreach collection="orderItemIds" index="index" item="orderItemIds" open="(" separator="," close=")">
+	    	#{orderItemIds}
+	    </foreach> -->
+	    select * from (
+	    select 
+	    (
+					SELECT count(1) 
+					FROM publishingplan pp
+					JOIN book b ON pp.id=b.period
+					WHERE FIND_IN_SET(pp.id,bk.`desc`)>0 AND oi.deliverstatus IN(0,2) AND o.orderstatus IN(2) AND o.paystatus=1
+					AND NOT EXISTS( SELECT 1 FROM invoiceandorder iao WHERE iao.qiciId=pp.id AND iao.orderItemId=oi.id)
+				) waitCount,
+	    o.id id,o.orderno orderno,o.postage youfei,CASE o.paytype WHEN 0 THEN '余额支付' WHEN 1 THEN '微信支付' WHEN 2 THEN '支付宝支付' end paytype,o.userId userId,date_format(o.addtime,"%Y-%m-%d") buyTime,
+		o.paystatus paystatus,o.deliverstatus deliverstatus,o.orderstatus status,
+		oi.receivername,oi.receiverphone,concat(oi.receiverProvince,oi.receiverCity,oi.receiverCounty,oi.receiverAddress) address,
+		oi.productname productname,oi.buyprice buyprice,oi.count buycount,oi.deliverstatus orderItemDeliverstatus,
+		ui.realname userName,IFNULL(om.effective,'暂无') effectiveTime,om.name className,
+		(select count(0) from orderitem oit where oit.orderid=o.id
+			<if test="listType!=null and listType!='' and listType==1">
+				and oit.producttype <![CDATA[&1>0]]> 
+			</if>
+			<if test="listType!=null and listType!='' and listType==2">
+				and oit.producttype <![CDATA[&2>0]]> 
+			</if>
+			<if test="listType!=null and listType!='' and listType==3">
+				and oit.producttype <![CDATA[&4>0]]> 
+			</if>
+			<if test="listType!=null and listType!='' and listType==4">
+				and oit.producttype <![CDATA[&8>0]]> 
+			</if>
+		) rowspanNum,
+		(select sum(odit.buyprice*odit.count) from orderitem odit where odit.orderid=o.id
+			<if test="listType!=null and listType!='' and listType==1">
+				and odit.producttype <![CDATA[&1>0]]> 
+			</if>
+			<if test="listType!=null and listType!='' and listType==2">
+				and odit.producttype <![CDATA[&2>0]]>
+			</if>
+			<if test="listType!=null and listType!='' and listType==3">
+				and odit.producttype <![CDATA[&4>0]]> 
+			</if>
+			<if test="listType!=null and listType!='' and listType==4">
+				and odit.producttype <![CDATA[&8>0]]> 
+			</if>
+		) totalPrice
+		from `order` o
+		Left join orderitem oi on oi.orderId=o.id
+		Left join userinfo ui on ui.userId=o.userId and ui.userType!=0
+		Left join ondemand om on om.ondemandId=oi.ondemandId
+		<if test="listType!=null and listType!='' and listType==2">
+			LEFT JOIN book bk ON oi.productid=bk.id
+			LEFT JOIN publishingplan p on p.id=bk.period
+			LEFT JOIN periodical pl on p.periodicalId=pl.id
+		</if>
+		where o.isDel=0 <include refid="orderWhere"></include>
+		<if test="ids!=null and ids!=''">
+			and  FIND_IN_SET(o.id,#{ids})
+		</if>
+			order by o.addtime desc
+		)t
+		<if test="needDelive!=null and needDelive==1">
+				where  waitCount>0
+		</if>
+	</select>
+	
+	<sql id="invoiceWhere">
+		<if test="period1!=null and period1!=''">
+			and (pp.periodicalId=#{period1} 
+			<if test="period2!=null and period2!=''">or pp.periodicalId=#{period2}</if>
+			) 
+		</if>
+		<if test="fahuoNum!=null and fahuoNum!=''">
+			AND iv.serialNumber LIKE "%"#{fahuoNum}"%"
+		</if>
+		<if test="orderNum!=null and orderNum!='' " >
+			AND oi.orderno LIKE  "%"#{orderNum}"%"
+		</if>
+		<if test="invoicetypes!=null and invoicetypes!='' " >
+			AND iv.type=#{invoicetypes}
+		</if>
+		<if test="userName!=null and userName!='' " >
+			AND (ui.userName like "%"#{userName}"%" or ui.nickName like "%"#{userName}"%") 
+		</if>
+		<if test="receivedInfo!=null and receivedInfo!='' " >
+			and (iv.receivername like "%"#{receivedInfo}"%" or iv.receiverphone like "%"#{receivedInfo}"%") 
+		</if>
+		<if test="goodsName!=null and goodsName!='' " >
+			and oi.productname like "%"#{goodsName}"%" 
+		</if>
+		<if test="orderStatus!=null and orderStatus!=''">
+			and iv.deliveryStatus = #{orderStatus}
+		</if>
+	</sql>
+	
+	
+	<!-- 查询发货单数量 -->
+	<select id="selInvoiceCount" parameterType="hashmap" resultType="long">
+		select count(DISTINCT iv.Id) 
+		from invoice iv
+		LEFT JOIN invoiceandorder iao ON iao.invoiceId=iv.Id
+		LEFT JOIN orderitem oi On oi.id=iao.orderItemId
+		LEFT JOIN expresscompany ec ON ec.Id=iv.expressId
+		LEFT JOIN publishingplan pp ON pp.id=iao.qiciId
+		LEFT JOIN `order` o ON o.id=iv.orderId
+		LEFT JOIN userinfo ui ON ui.userId=o.userId
+		where oi.producttype <![CDATA[&#{invoiceType}>0]]>  <include refid="invoiceWhere"></include>
+	</select>
+	
+	<!-- 查询发货单列表 -->
+	<select id="selInvoiceList" parameterType="hashmap" resultType="hashmap">
+		select iv.Id invoiceId,oi.id orderItemId,oi.productname goodsName,iv.serialNumber liushuiNum,oi.orderno,IFNULL(ui.nickName,ui.realName) AS userName,oi.receivername,oi.receiverphone,
+		oi.receiverProvince,oi.receiverCity,oi.receiverCounty,oi.receiverAddress, iao.goodsCount count,da.receiver consignor,da.phone consignorPhone,
+		IFNULL(da.province,"") consignorProvince,IFNULL(da.city,"") consignorCity,IFNULL(da.county,"") consignorCounty,
+		IFNULL(da.detailedAddress,"") consignordetailedAddress,pp.year,IFNULL(pp.describes, "") describes ,oi.subType,
+		IFNULL(ec.`name`,"") name ,
+		date_format(iv.IssueTime, '%Y-%m-%d %H:%i') date,
+		case iv.type WHEN 2 THEN '批量发货' else '非批量发货' END invoicetype,
+		IFNULL(iv.expressNum,"") expressNum,ifnull(o.postage,0)postage,iv.deliveryStatus,case iv.deliveryStatus WHEN 0 THEN '待签收' WHEN 1 THEN '已签收' WHEN 2 THEN '丢件' end statusName
+		from invoice iv
+		LEFT JOIN invoiceandorder iao on iao.invoiceId=iv.Id
+		LEFT JOIN orderitem oi on oi.id=iao.orderItemId
+		LEFT JOIN expresscompany ec on ec.Id=iv.expressId
+		LEFT JOIN `order` o ON o.id=iv.orderId
+		LEFT JOIN userinfo ui ON ui.userId=o.userId
+		LEFT JOIN deliveraddress da ON iv.sendAddress=da.id
+		LEFT JOIN publishingplan pp ON pp.id=iao.qiciId
+		where oi.producttype <![CDATA[&#{invoiceType}>0]]>
+		<include refid="invoiceWhere"></include>
+		GROUP BY iv.Id
+		order By IssueTime desc
+		<if test="start!=null and start!='' and pageSize!=null and pageSize!='' ">
+		limit #{start},#{pageSize}
+		</if>
+	</select>
+	<select id="selSubType" parameterType="hashmap" resultType="hashmap">
+		SELECT
+			group_concat(pp.year,pp.describes,pd.name) describes
+		FROM
+			invoiceandorder iao
+		LEFT JOIN publishingplan pp ON pp.id = iao.qiciId
+		LEFT JOIN periodical pd ON pp.periodicalId =  pd.id
+		WHERE
+			iao.invoiceId = #{invoiceId}
+	</select>
+	
+	<!-- 标记为丢件 -->
+	<update id="loseGoods" parameterType="Integer">
+		update invoice set deliveryStatus=2 where Id=#{invoiceId}
+	</update> 
+	<!-- 查询发货人的默认发货地址 -->
+	<select id="sqlSendAddressId" parameterType="String" resultType="String">
+		select Id from deliveraddress where userId=#{senderId} and isDefault=1
+	</select>
+	<!-- 查询orderId和orderItemId 和期刊id -->
+	<select id="selOrderAndItemId" parameterType="hashmap" resultType="hashmap">
+		select id orderItemId,orderId,productid from orderitem where orderno=#{orderNo} and productname=#{qikanName}
+	</select>
+	<!-- 查询物流公司的id -->
+	<select id="selExpressId" parameterType="String" resultType="String">
+		select Id from expresscompany where name like "%"#{expressName}"%"
+	</select>
+	<!-- 查询需要发货的期次id -->
+	<select id="selQiciInfo" parameterType="String" resultType="hashmap">
+		select pp.`year`,pp.describes,pp.id planId 
+		from `order` o
+		Left join orderitem oi on oi.orderId=o.id 
+		LEFT JOIN publishingplan pp on pp.periodicalId=oi.productid
+		LEFT JOIN invoiceandorder iad on iad.qiciId=pp.id
+		LEFT JOIN book bk on bk.period=pp.id
+		where o.isDel=0 and oi.deliverstatus!=1 and o.orderno=#{orderNo} and IFNULL(iad.invoiceId,0)=0 and IFNULL(bk.id,0)>0
+	</select>
+	<select id="getOrderDetail" parameterType="hashmap" resultType="hashmap">
+		select * from `order` where id = #{orderId}
+	</select>
+</mapper>

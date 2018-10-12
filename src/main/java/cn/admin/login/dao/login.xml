@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="loginDao">
+	<!-- 修改密码 -->
+	<update id="updatePwd" parameterType="hashmap">
+		update userinfo set
+		userPwd=#{userPwd} where telenumber=#{telenumber}
+	</update>
+	<!-- 查询登陆者的角色 -->
+	<select id="selectUserType" resultType="int" parameterType="hashmap">
+		select userType from userinfo where (userName=#{userName} or
+		telenumber=#{userName}) and userPwd=#{userPwd}
+	</select>
+	<!-- 修改用户最后一次登录时间，登录IP登录次数 -->
+	<insert id="updateLoginTimeAndIP" parameterType="map">
+		insert into userlogin(userId, loginTime, loginIP, ipAttribution, remark, loginMethod)
+		values(#{userId}, #{loginTime}, #{loginIP}, #{ipAttribution}, #{remark}, #{loginMethod})
+	</insert>	
+	<!-- 修改超级用户 -->
+	<update id="upPwd" parameterType="hashmap">
+		update userinfo set
+		userPwd=#{userPwd} where userId = #{userId}
+	</update>
+	<!-- 查询超级用户 -->
+	<select id="selUserByID" parameterType="hashmap" resultType="hashmap">
+		select * from userinfo where userId = #{userId};
+	</select>
+</mapper>

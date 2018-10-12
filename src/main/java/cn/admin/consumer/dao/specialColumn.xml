@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="writerDao">
+	
+	
+	
+	<sql id="sql_where">
+		<if test="regBeginTime != null and regBeginTime != ''">
+			and u.registrationDate &gt;= #{regBeginTime}
+		</if>
+		<if test="regEndTime != null and regEndTime != ''">
+			and u.registrationDate &lt;= #{regEndTime}
+		</if>
+		<if test="isFreeze != null and isFreeze != ''">
+			and u.isFreeze=#{isFreeze}
+		</if>
+		<if test="name != null and name != ''">
+			and (u.userName like "%"#{name}"%" or u.realname like "%"#{name}"%" or u.telenumber like "%"#{name}"%")
+		</if>
+		<if test="userType!=null and userType!=''">
+			and u.userType=#{userType}
+		</if>
+		<if test="ids!=null and ids!=''">
+			and u.userId in 
+			<foreach collection="id" index="index" separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+	</sql>
+	<!-- 查询用户列表 -->
+	<select id="selConsumerList" resultType="hashmap" parameterType="hashmap">
+		select u.userId,u.userName,u.telenumber,u.email,u.userCode,u.realname,date_format(u.registrationDate,'%Y-%m-%d %T') registrationDate,
+		u.userType,u.approve,u.IsRecommend,u.nickName,date_format(u.birthDate,'%Y-%m-%d') birthDate,
+		case when u.sex = 0 then '男' when u.sex = 1 then '女' end sex,ua.accountJF,ua.balance,
+		case when u.isFreeze = 0 then '禁用' when u.isFreeze = 1 then '启用' end isFreeze
+		from userinfo u 
+		LEFT JOIN useraccount ua on ua.customerId=u.userId 
+		where 1=1 and u.userType!=0 and u.isDelete=0 and u.approve=#{approve}
+		<include refid="sql_where" />
+		GROUP BY u.userId 
+		ORDER BY u.registrationDate DESC
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 用户数量 -->
+	<select id="selConsumerCount" resultType="long" parameterType="hashmap">
+		select count(*) from userinfo u 
+		LEFT JOIN useraccount ua on ua.customerId=u.userId 
+		where 1=1 and u.userType!=0 and u.isDelete=0 and u.approve=#{approve}
+		<include refid="sql_where" />
+	</select>
+	<!-- 删除用户 -->
+	<update id="deletes" parameterType="hashmap">
+		update userinfo set isDelete=1 where userId=#{userId}
+	</update>
+	<!-- 查询用户信息 -->
+	<select id="selectUserInfoById" resultType="hashmap" parameterType="String">
+		select u.nickName,u.sex,u.userId,u.realname,u.noPurchaseUser noPurchaseUser,
+		DATE_FORMAT(u.birthDate,'%Y-%m-%d') birthDate,u.telenumber,DATE_FORMAT(u.registrationDate,'%Y-%m-%d %T') registrationDate,
+		ua.accountJF,ua.balance,u.education,u.industry,u.occupation,u.synopsis,u.userPwd,
+		u.documentType,u.identitynumber,u.IDpic,u.userUrl,u.approve,u.opinion,u.IsRecommend from userinfo u
+		left join useraccount ua on ua.customerId=u.userId
+		where u.userId=#{_parameter}
+	</select>
+	<!-- 查询专家信息 -->
+	<select id="selectWriterMsg" resultType="hashmap" parameterType="hashmap">
+		select vipGrade,rewardNum,questionPrice from writer_extendmsg where userId=#{userId}
+	</select>
+	<!-- 查询导出数据 -->
+	<select id="selectDownload" resultType="hashmap" parameterType="hashmap">
+		select u.userId,u.userName,u.telenumber,u.email,u.userCode,u.realname,date_format(u.registrationDate,'%Y-%m-%d %T') registrationDate,
+		u.userType,u.approve,u.IsRecommend,u.nickName,date_format(u.birthDate,'%Y-%m-%d') birthDate,
+		case when u.sex = 0 then '男' when u.sex = 1 then '女' end sex,ua.accountJF,ua.balance,
+		case when u.isFreeze = 0 then '禁用' when u.isFreeze = 1 then '启用' end isFreeze
+		from userinfo u 
+		LEFT JOIN useraccount ua on ua.customerId=u.userId 
+		where 1=1 and u.userType!=0 and u.isDelete=0 and u.approve is not null
+		<include refid="sql_where" />
+		GROUP BY u.userId 
+		ORDER BY u.registrationDate DESC
+	</select>
+	
+</mapper>

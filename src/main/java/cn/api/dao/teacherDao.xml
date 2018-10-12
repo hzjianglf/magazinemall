@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="teacherDao">
+	
+	<!-- 获取专家列表 -->	
+	<select id="selExpertList" parameterType="hashmap" resultType="hashmap">
+		select userId,userUrl,realname,nickName,synopsis,userType,userUrl,
+		(SELECT count(0) from ondemand o LEFT JOIN ondemand_teacher ot on ot.ondemandId=o.ondemandId
+		where ot.teacherId=userinfo.userId and o.status!=0 and o.status!=-1) as ondemandCount
+		from userinfo
+		where userType=2 AND isDelete=0 AND isFreeze=1 and approve=1
+		<if test="IsRecommend==1">
+			and IsRecommend=1
+		</if>
+		<if test="searchName!=null and searchName!='' and searchName!='undefined'">
+			and nickName like CONCAT('%', #{searchName}, '%')
+		</if>
+		order by registrationDate desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<select id="selectExpertCont" resultType="long" parameterType="hashmap">
+		select count(userId) from userinfo where userType=2 AND isDelete=0 AND isFreeze=1 and approve=1
+		<if test="IsRecommend==1">
+			and IsRecommend=1
+		</if>
+		<if test="searchName!=null and searchName!='' and searchName!='undefined'">
+			and realname like CONCAT('%', #{searchName}, '%')
+		</if>
+	</select>
+	
+	<select id="selTeaContent" parameterType="hashmap" resultType="hashmap">
+		SELECT u.userId,u.realname,u.nickName,case u.sex when 0 then '男' when 1 then '女' when 2 then '未知' end sex,u.userUrl as teacherUrl,u.synopsis,
+		u.education,u.industry,w.fansNum,w.rewardNum,
+		(select count(0) from favorites f where f.dataType=5 and f.favoriteType=2 and f.userId=u.userId) as followNum,
+		(select count(0) FROM interlocution i WHERE i.lecturer=u.userId and i.answerState=2 and i.questionState=1 and i.status=1) as twCount
+		FROM `userinfo` u
+		LEFT JOIN writer_extendmsg w on u.userId=w.userId
+		where u.userId=#{userId}
+	</select>
+	
+	<!-- 获取专家课程列表 -->
+	<select id="getOndemandCount" parameterType="int" resultType="long">
+		select count(0) from ondemand o
+		join ondemand_teacher ot on o.ondemandId=ot.ondemandId
+		where ot.teacherId=#{userId}
+		<if test="classtype!=null and classtype!=''">
+			and o.classtype=#{classtype}
+		</if>
+	</select>
+	<select id="getOndemandList" parameterType="hashmap" resultType="hashmap">
+		SELECT o.ondemandId,o.picUrl,o.IsGratis,o.serialState,o.`name`,o.studentNum,o.hits,o.IsRecommend,o.`status`,ot.display,o.serialState,
+		IFNULL((select count(0) from classhour where ondemandId=o.ondemandId),0) as count,o.isSum 
+		from ondemand o
+		join ondemand_teacher ot on o.ondemandId=ot.ondemandId
+		where ot.teacherId=#{userId}
+		<if test="classtype!=null and classtype!=''">
+			and o.classtype=#{classtype}
+		</if>
+	</select>
+	<!-- 获取专家列表最新的4天课程记录 -->
+	<select id="selectTeacherClass" resultType="hashmap" parameterType="hashmap">
+		SELECT o.ondemandId,o.picUrl,o.IsGratis,o.serialState,o.`name`,o.studentNum,o.hits,o.IsRecommend,o.`status`,ot.display,o.serialState,
+		IFNULL((select count(0) from classhour where ondemandId=o.ondemandId),0) as count 
+		from ondemand o
+		join ondemand_teacher ot on o.ondemandId=ot.ondemandId
+		where ot.teacherId=#{userId}
+		order by creationTime desc
+		limit 4
+	</select>
+	<!-- 专家的问答列表 -->
+	<select id="selectTeacherAudit" resultType="hashmap" parameterType="hashmap">
+		select i.inputDate,u.nickName,uf.realname,uf.userUrl,i.content,i.answer,i.musicurl,we.questionPrice price,i.lecturer,i.id questionId,i.answertype,i.money,
+		(SELECT count(0) from audit a WHERE a.interlocutionId=i.id and status = 1) as auditCount,
+		CASE WHEN i.questioner=#{myUserId} OR i.respondent=#{myUserId} OR i.money=0 THEN 1 ELSE 
+			CASE  WHEN (SELECT count(0) FROM audit a WHERE a.interlocutionId=i.id AND a.`status`=1 AND a.userId=${myUserId})>0 THEN 1 ELSE 0 END
+		END isBugAudit
+		from interlocution i
+		LEFT JOIN userinfo u on u.userId=i.questioner
+		LEFT JOIN userinfo uf on uf.userId=i.lecturer
+		LEFT JOIN writer_extendmsg we on we.userId=i.lecturer
+		WHERE  i.answerState=2 and i.questionState=1 and i.status=1
+		<if test="userId!=null and userId!=''">
+			and i.lecturer=#{userId}
+		</if>
+		<if test="type!=null">
+			and i.logType=#{type}
+		</if>
+		<if test="meetType!=null and meetType!=''">
+			and i.meetType=#{meetType}
+		</if>
+			order by i.inputDate desc
+		<if test="limit !=null and limit != ''">
+			limit #{limit}
+		</if>
+		<if test="start != null and pageSize != null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 问答列表count -->
+	<select id="selQuestionCount" resultType="long" parameterType="hashmap">
+		select count(0)
+		from interlocution i
+		LEFT JOIN userinfo u on u.userId=i.questioner
+		LEFT JOIN userinfo uf on uf.userId=i.lecturer
+		WHERE  i.answerState=2 and i.questionState=1 and i.status=1
+		<if test="userId!=null and userId!=''">
+			and i.lecturer=#{userId}
+		</if>
+		<if test="type!=null">
+			and i.logType=#{type}
+		</if>
+		<if test="meetType!=null and meetType!=''">
+			and i.meetType=#{meetType}
+		</if>
+	</select>
+	<!-- 打赏记录 -->
+	<select id="selectUrl" resultType="hashmap" parameterType="hashmap">
+		select u.userUrl from rewardlog r
+		LEFT JOIN userinfo u on u.userId=r.rewardPeople
+		where r.beRewarding=#{userId}
+		ORDER BY r.inputDate DESC
+		LIMIT 3
+	</select>
+	<!-- 查询是否已经关注了 -->
+	<select id="selectIsFoolow" resultType="hashmap" parameterType="hashmap">
+		select * from favorites where dataId=#{userId} and dataType=5 and favoriteType=2 and userId=#{myUserId}
+	</select>
+	<select id="selQuestionInfo" parameterType="hashmap" resultType="double">
+		select ifnull(questionPrice,0) from writer_extendmsg where userId=#{userId}
+	</select>
+	<!-- 获取专家答疑分类 -->
+	<select id="selectMeetType" resultType="hashmap">
+		select * from labels where classification='专家答疑' and status=1
+	</select>
+	<!-- 专栏作家的销售记录 -->
+	<select id="MySaleLogList" resultType="hashmap" parameterType="hashmap">
+		SELECT od.`name`,u.nickName,o.totalprice,DATE_FORMAT(o.addtime,'%Y-%m-%d %T') addtime FROM `order` o
+		LEFT JOIN orderitem ot on ot.orderId=o.id
+		LEFT JOIN ondemand od on od.ondemandId=ot.ondemandId
+		LEFT JOIN ondemand_teacher ott on ott.ondemandId=od.ondemandId
+		LEFT JOIN userinfo u on u.userId=o.userId
+		WHERE ott.teacherId=#{userId} AND o.paystatus=1 AND ot.producttype!=1 AND ot.producttype!=2
+		order by o.addtime desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- count -->
+	<select id="MySaleLogCount" resultType="long" parameterType="hashmap">
+		SELECT count(0) FROM `order` o
+		LEFT JOIN orderitem ot on ot.orderId=o.id
+		LEFT JOIN ondemand od on od.ondemandId=ot.ondemandId
+		LEFT JOIN ondemand_teacher ott on ott.ondemandId=od.ondemandId
+		LEFT JOIN userinfo u on u.userId=o.userId
+		WHERE ott.teacherId=#{userId} AND o.paystatus=1 AND ot.producttype!=1 AND ot.producttype!=2
+	</select>
+	<!-- 专栏工作台信息 -->
+	<select id="selectWriterMsg" resultType="hashmap" parameterType="String">
+		SELECT u.nickName,u.realname,u.userUrl,we.vipGrade,
+		(SELECT COUNT(0) from ondemand o LEFT JOIN ondemand_teacher ot on ot.ondemandId=o.ondemandId
+		WHERE ot.teacherId=u.userId) AS worksCount,
+		(SELECT COUNT(0) from ondemand od LEFT JOIN ondemand_teacher ott on ott.ondemandId=od.ondemandId
+		WHERE ott.teacherId=u.userId AND od.classtype=1) AS liveCount,
+		(SELECT IFNULL(SUM(ul.money),0) from useraccountlog ul WHERE DATE_FORMAT(ul.time,'%Y-%m')=DATE_FORMAT(NOW(),'%Y-%m')
+		AND ul.userId=u.userId and ul.`status`=1) AS mothNowPrice,
+		(SELECT IFNULL(SUM(ull.money),0) from useraccountlog ull WHERE ull.userId=u.userId and ull.`status`=1) AS sumMoney
+		 from userinfo u 
+		LEFT JOIN writer_extendmsg we on we.userId=u.userId
+		where u.userId=#{_parameter}
+	</select>
+	<!-- 查询认证xinxi -->
+	<select id="selectApplyMsg" resultType="hashmap" parameterType="String">
+		SELECT documentType,identitynumber,IDpic,oneselfPic,realname FROM userinfo where userId=#{_parameter}
+	</select>
+	
+</mapper>

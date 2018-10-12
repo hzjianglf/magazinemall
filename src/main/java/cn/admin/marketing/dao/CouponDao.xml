@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="couponDao">
+	
+	<sql id="couponWhere">
+		<if test="couponName!=null and couponName!='' ">
+			and name like "%"#{couponName}"%"  
+		</if>
+		<if test="state!=null and state!='' and state==0">
+			and date_format(now(),"%Y-%m-%d") <![CDATA[<]]> date_format(startTime,"%Y-%m-%d")
+		</if>
+		<if test="state!=null and state!='' and state==1">
+			and date_format(startTime,"%Y-%m-%d") <![CDATA[<]]> date_format(now(),"%Y-%m-%d") and date_format(now(),"%Y-%m-%d") <![CDATA[<]]> date_format(endTime,"%Y-%m-%d")
+		</if>
+		<if test="state!=null and state!='' and state==2">
+			and date_format(now(),"%Y-%m-%d") <![CDATA[>]]> date_format(endTime,"%Y-%m-%d")
+		</if>
+		<if test="state!=null and state!='' and state==3">
+			and state=1
+		</if>
+		
+		
+	</sql>
+	
+	<!-- 查询优惠券总条数 -->
+	<select id="selTotalCount" parameterType="hashmap" resultType="long">
+		select count(0) from coupon where isDel=0
+		<include refid="couponWhere"></include>
+		
+	</select>
+	<!-- 查询优惠券列表 -->
+	<select id="selCouponList" parameterType="hashmap" resultType="hashmap">
+		select *,date_format(startTime,"%Y-%m-%d") startDate,date_format(endTime,"%Y-%m-%d") endDate,
+		CASE when date_format(now(),"%Y-%m-%d") <![CDATA[<]]>  date_format(startTime,"%Y-%m-%d") THEN '1' 
+		WHEN date_format(now(),"%Y-%m-%d") <![CDATA[>=]]> date_format(startTime,"%Y-%m-%d") and date_format(now(),"%Y-%m-%d") <![CDATA[<]]> date_format(endTime,"%Y-%m-%d") THEN '2'
+		WHEN date_format(now(),"%Y-%m-%d") <![CDATA[>]]> date_format(endTime,"%Y-%m-%d") THEN '3' else 0 end exceedTime
+		from coupon
+		where isDel=0
+		<include refid="couponWhere"></include>
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 查看详情 -->
+	<select id="selDetail" parameterType="String" resultType="hashmap">
+		select *,date_format(startTime,"%Y-%m-%d") startDate,date_format(endTime,"%Y-%m-%d") endDate from coupon where Id=#{couponId}
+	</select>
+	<!-- 期刊总数 -->
+	<select id="selQikanCount" parameterType="hashmap" resultType="long">
+		select count(0) from periodical where state=1  
+		<if test="searchText!=null and searchText!='' ">
+			and name like "%"#{searchText}"%"
+		</if>
+		<if test="names!=null and names!=''">
+			and name like "%"#{names}"%"
+		</if> 
+	</select>
+	<!-- 获取期刊列表 -->
+	<select id="getQikanlist" parameterType="hashmap" resultType="hashmap">
+		select * from periodical where state=1 
+		<if test="searchText!=null and searchText!='' ">
+			and name like "%"#{searchText}"%"
+		</if>
+		<if test="names!=null and names!=''">
+			and name like "%"#{names}"%"
+		</if>
+		limit ${start},${pageSize}
+	</select>
+	<!-- 直播、点播课程总数 -->
+	<select id="selClassCount" parameterType="hashmap" resultType="long">
+		select count(0) from ondemand 
+		<where>
+			<if test="type!=null and type!='' and type==3 ">
+				and classtype=0
+			</if>
+			<if test="type!=null and type!='' and type==4 ">
+				and classtype=1
+			</if>
+			<if test="searchText!=null and searchText!='' ">
+				and name like "%"#{searchText}"%"
+			</if>
+			<if test="numbers!=null and numbers!=''">
+				and number like "%"#{numbers}"%"
+			</if>
+			<if test="names!=null and names!=''">
+				and name like "%"#{names}"%"
+			</if>
+		</where>
+	</select>
+	<!-- 查询点播、直播课程列表 -->
+	<select id="getClassList" parameterType="hashmap" resultType="hashmap">
+		select o.*,ifnull(ui.realname,ui.nickName) realname,case o.status when 0 then '已关闭' when 1 then '已发布' when -1 then '未发布' when 2 then '未开始' when 3 then '直播中' when 4 then '已结束' end statusText from ondemand o 
+		left join ondemand_teacher ot on ot.ondemandId=o.ondemandId
+		left join userinfo ui on ui.userId=ot.teacherId
+		<where>
+			<if test="type!=null and type!='' and type==3 ">
+				and o.classtype=0
+			</if>
+			<if test="type!=null and type!='' and type==4 ">
+				and o.classtype=1
+			</if>
+			<if test="searchText!=null and searchText!='' ">
+				and o.name like "%"#{searchText}"%"
+			</if>
+			<if test="numbers!=null and numbers!=''">
+				and number like "%"#{numbers}"%"
+			</if>
+			<if test="names!=null and names!=''">
+				and name like "%"#{names}"%"
+			</if>
+		</where>
+		limit ${start},${pageSize}
+	</select>
+	<!-- 专家总数 -->
+	<select id="selTeacherCount" parameterType="hashmap" resultType="long">
+		select count(0) from userinfo  where userType=2 and isDelete=0 and isFreeze=1
+		<if test="searchText!=null and searchText!='' ">
+			and (userName like "%"#{searchText}"%" or realname like "%"#{searchText}"%" or nickName like "%"#{searchText}"%")
+		</if>
+		<if test="numbers!=null and numbers!=''">
+			and telenumber like "%"#{numbers}"%"
+		</if>
+		<if test="names!=null and names!=''">
+			and (userName like "%"#{names}"%" or realname like "%"#{names}"%" or nickName like "%"#{names}"%")
+		</if>
+	</select>
+	<!-- 查询专家列表 -->
+	<select id="getTeacherList" parameterType="hashmap" resultType="hashmap">
+		select * from userinfo where userType=2 and isDelete=0 and isFreeze=1
+		<if test="searchText!=null and searchText!='' ">
+			and (userName like "%"#{searchText}"%" or realname like "%"#{searchText}"%" or nickName like "%"#{searchText}"%")
+		</if>
+		<if test="numbers!=null and numbers!=''">
+			and telenumber like "%"#{numbers}"%"
+		</if>
+		<if test="names!=null and names!=''">
+			and (userName like "%"#{names}"%" or realname like "%"#{names}"%" or nickName like "%"#{names}"%")
+		</if>
+		limit ${start},${pageSize}
+	</select>
+	
+	<!-- 添加优惠券 -->
+	<insert id="addCoupon" parameterType="hashmap" useGeneratedKeys="true" keyProperty="couponId">
+		insert into coupon (name,manprice,jianprice
+		<if test="startTime!=null and startTime!='' and endTime!=null and endTime!=''">
+			,startTime,endTime
+		</if>
+		,addTime,totalCount,surplusCount,state,founder,founderName,couponType
+		<if test="couponType!=null and couponType!='' and couponType==1 ">
+			,pinleiGoodsType
+		</if>
+		<if test="couponType!=null and couponType!='' and couponType==2 ">
+			,dingxiangGoodsType,dingxiangGoodsId,dingxiangGoodsName
+		</if>
+		
+		) values
+		
+		(#{name},#{manPrice},#{jianPrice}
+		<if test="startTime!=null and startTime!='' and endTime!=null and endTime!=''">
+			,#{startTime},#{endTime}
+		</if>
+		,now(),#{totalCount},#{totalCount},#{state},#{userId},#{userName},#{couponType}
+		<if test="couponType!=null and couponType!='' and couponType==1 ">
+			,#{goodsTypeCheck}
+		</if>
+		<if test="couponType!=null and couponType!='' and couponType==2 ">
+			,#{goodsType},#{dingxiangId},#{searchGoods}
+		</if>
+		) 
+	</insert>
+	<!-- 添加优惠券和商品的关联表 -->
+	<insert id="addGoodsAndCoupon" parameterType="hashmap">
+		insert into sharesales_product (activeId,productType,productId,activityType) values (#{couponId},#{productType},#{prodocutId},1)
+	</insert>
+	<!-- 修改优惠券信息 -->
+	<update id="updCoupon" parameterType="hashmap">
+		update coupon set name=#{name},manprice=#{manPrice},jianprice=#{jianPrice},startTime=#{startTime},endTime=#{endTime},
+		totalCount=#{totalCount},surplusCount=(#{totalCount} - #{alreadyIssued}) ,state=#{state},founder=#{userId},founderName=#{userName},couponType=#{couponType}
+		<if test="couponType!=null and couponType!='' and couponType==1 ">
+			,pinleiGoodsType=#{goodsTypeCheck}
+		</if>
+		<if test="couponType!=null and couponType!='' and couponType==2 ">
+			,dingxiangGoodsType=#{goodsType},dingxiangGoodsId=#{dingxiangId},dingxiangGoodsName=#{searchGoods}
+		</if>
+		where Id=#{couponId}
+	</update>
+	<!-- 删除优惠券 -->
+	<update id="delCouponInfo" parameterType="Integer">
+		update coupon set isDel=1 where Id=#{couponId}
+	</update>
+	
+	<!-- 用户查询条件 -->
+	<sql id="userinfoWhere">
+		<if test="userName!=null and userName!='' ">
+			and (ui.realname like "%"#{userName}"%" OR ui.nickName like "%"#{userName}"%"  OR ui.userName like "%"#{userName}"%" )
+		</if>
+		<if test="minJF!=null and minJF!='' ">
+			and uc.accountJF <![CDATA[>=#{minJF}]]> 
+		</if>
+		<if test="maxJF!=null and maxJF!='' ">
+			and uc.accountJF <![CDATA[<=#{maxJF}]]> 
+		</if>
+	</sql>
+	
+	<!-- 查询用户数量 -->
+	<select id="selUserTotalCount" parameterType="hashmap" resultType="long">
+		select count(0) from userinfo ui
+		LEFT JOIN useraccount uc on uc.customerId=ui.userId
+		LEFT JOIN coupon_user cu ON cu.userId=ui.userId and cu.couponId=#{couponId}
+		where ui.isAdmin=0 <include refid="userinfoWhere"></include> and IFNULL(cu.id,0)=0
+	</select>
+	<!-- 查询用户信息 -->
+	<select id="selUserInfo" parameterType="hashmap" resultType="hashmap">
+		select ui.userId,CONCAT(IFNULL(ui.nickName,realName),'/',ui.telenumber) realname, IFNULL(uc.accountJF,0) accountJF,IFNULL(cu.id,0) cuId from userinfo ui
+		LEFT JOIN useraccount uc on uc.customerId=ui.userId
+		LEFT JOIN coupon_user cu ON cu.userId=ui.userId and cu.couponId=#{couponId}
+		where ui.isAdmin=0 <include refid="userinfoWhere"></include> and IFNULL(cu.id,0)=0
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 查询优惠券的剩余数量 -->
+	<select id="selCouponCount" parameterType="Integer" resultType="Integer">
+		select surplusCount from coupon where Id=#{couponId} 
+	</select>
+	<!-- 添加优惠券和用户关系表 -->
+	<insert id="addCouponUser" parameterType="hashmap">
+		insert into coupon_user (userId,couponId,addTime) values (#{userId},#{couponId},now())
+	</insert>
+	<!-- 修改优惠券的发行和剩余数量 -->
+	<update id="updCouponCount" parameterType="hashmap">
+		update coupon set alreadyIssued=alreadyIssued+#{grantCount},surplusCount=surplusCount-#{grantCount}
+		<if test="surplusCount==grantCount">
+			,state=2
+		</if>
+		where Id=#{couponId}
+	</update>
+	<!-- 查询已发优惠券数量 -->
+	<select id="alreadyGrantCount" parameterType="hashmap" resultType="long">
+		select count(0) from coupon_user where couponId=#{couponId}
+		<if test="type!=null and type!='' and type==1">
+			and useState=1
+		</if>
+	</select>
+	<!-- 查询已发优惠券信息 -->
+	<select id="selAlreadyGrantList" parameterType="hashmap" resultType="hashmap">
+		select cu.id cuId,date_format(cu.addTime,"%Y-%m-%d %T") grantTime,cu.orderNo,IFNULL(ui.nickName,realName) realname,case cu.useState WHEN 0 THEN '未使用' WHEN 1 THEN '已使用' end stateName from coupon_user cu
+		left join coupon c on c.Id=cu.couponId
+		left join userinfo ui on ui.userId=cu.userId
+		where couponId=#{couponId}
+		<if test="type!=null and type!='' and type==1">
+			and useState=1
+		</if>
+	</select>
+</mapper>

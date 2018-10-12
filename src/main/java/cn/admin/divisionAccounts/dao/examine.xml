@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="examineDao">
+	
+	
+	
+	<sql id="sql_where">
+		<if test="submitTime!=null and submitTime!=''">
+			and submitTime=#{submitTime}
+		</if>
+		<if test="name!=null and name!=''">
+			and (name like "%"#{name}"%" or id=#{name})
+		</if>
+		<if test="inputer!=null and inputer!=''">
+			and inputer like "%"#{inputer}"%"
+		</if>
+		<if test="state==1 and state!=null and state!=''">
+			and trialStatus=5
+		</if>
+		<if test="state==0 and state!=null and state!=''">
+			and (trialStatus=1 or trialStatus=3)
+		</if>
+		<if test="state==2 and state!=null and state!=''">
+			and (trialStatus=2 or trialStatus=4)
+		</if>
+	</sql>
+	<!-- 审核列表 -->
+	<select id="selectExamineList" resultType="hashmap" parameterType="hashmap">
+		SELECT id,`name`,userCount,(totalOndemandMoney+totalQuestionMoney+totalRewardMoney-totalSalesTax-totalPersonalTax) AS shouldPrice,trialStatus
+		FROM billreckon_examine
+		WHERE status=2 
+		<include refid="sql_where"></include>
+		limit #{start},#{pageSize}
+	</select>
+	<select id="selectExamineCount" resultType="long" parameterType="hashmap">
+		SELECT count(0)	FROM billreckon_examine
+		WHERE status=2 
+		<include refid="sql_where"></include>
+	</select>
+	<!-- 审核 -->
+	<update id="updateExamineResult" parameterType="hashmap">
+		update billreckon set status=#{status},trialStatus=#{trialStatus}
+		<if test="type==1 and type!=null and type!=''">
+			,fistTrialTime = now()
+			,fistTrialRemark=#{remark}
+			,fistTralUserId = #{userId}
+		</if>
+		<if test="type==2 and type!=null and type!=''">
+			,reTrialTime = now()
+			,reTrialRemark=#{remark}
+			,reTralUserId = #{userId}
+		</if>
+		where id=#{id}
+		
+	</update>
+	
+	<!-- 审核意见查询 -->
+	<select id="selOpinion" parameterType="hashmap" resultType="hashmap">
+		SELECT b.trialStatus ,  DATE_FORMAT(b.fistTrialTime,'%Y-%m-%d') fistTrialTime 
+		 , b.fistTrialRemark , u1.realname fistTralUser, 
+		b.reTrialRemark , DATE_FORMAT(b.reTrialTime,'%Y-%m-%d') reTrialTime, u2.realname reTralUser
+		FROM `billreckon` b , userinfo u1 , userinfo u2
+		WHERE b.id=#{id} and u1.userId = b.fistTralUserId and u2.userId = b.reTralUserId;
+	</select>
+	
+	
+</mapper>

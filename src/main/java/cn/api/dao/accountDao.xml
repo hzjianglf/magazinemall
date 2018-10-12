@@ -1,0 +1,498 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="accountDao">
+	
+	<!-- 查询用户地址列表 -->
+	<select id="selAddressList" parameterType="Integer" resultType="hashmap">
+		select * from deliveraddress where userId=#{userId} and isDel=0 
+		ORDER BY isDefault DESC
+	</select>
+	<!-- 删除用户地址 -->
+	<update id="DeleteAddress" parameterType="hashmap">
+		update deliveraddress set isDel=1 where userId=#{userId} and Id=#{Id} 
+	</update>
+	<!-- 修改用户的默认地址 -->
+	<update id="updDefaultAddress" parameterType="hashmap">
+		update deliveraddress set isDefault=#{type} , addTime = now() where userId=#{userId} and Id=#{Id} 
+	</update>
+	<update id="updOtherAddress" parameterType="hashmap">
+		update deliveraddress set isDefault=0 where userId=#{userId} 
+		<if test="Id!=null and Id!=''">
+			and Id not in (#{Id})
+		</if>
+	</update>
+	<!-- 查询用户默认地址 -->
+	<select id="selectIsDefaultAddress" resultType="hashmap" parameterType="hashmap">
+		SELECT * from deliveraddress 
+		WHERE isDel=0 and userId=#{userId} 
+		<if test="isDefault != null and isDefault != ''">
+			AND isDefault=#{isDefault}
+		</if>
+		<if test="id != null and id != ''">
+			AND id=#{id}
+		</if>
+		ORDER BY addTime DESC
+		LIMIT 1
+	</select>
+	<!-- 查询单个地址的详情 -->
+	<select id="selAddressDetail" parameterType="hashmap" resultType="hashmap">
+		select * from deliveraddress where userId=#{userId} and Id=#{Id} and isDel=0
+	</select>
+	<!-- 获取银行卡列表 -->
+	<select id="selectBankCardList" resultType="hashmap" parameterType="hashmap">
+		select id,userId,bankName,cardNo,date_format(inputDate , '%Y-%m-%d %T') inputDate from bankcard
+		where userId=#{userId}
+		order by inputDate desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 查询银行卡数量 -->
+	<select id="selectBankCardCount" resultType="long" parameterType="hashmap">
+		select count(*) from bankcard
+		where userId=#{userId}
+		order by inputDate desc
+	</select>
+	<!-- 添加银行卡 -->
+	<insert id="addBankCard" parameterType="hashmap">
+		insert into bankcard (userId,bankName,cardNo,inputDate) values(#{userId},#{bankName},#{cardNo},now())
+	</insert>
+	<!-- 修改基本信息 -->
+	<update id="updateUserBasic" parameterType="hashmap">
+		update userinfo set 
+		userUrl=#{userUrl},
+		nickName=#{nickName},
+		sex=#{sex},
+		<if test="birthDate !=null and birthDate!=''">
+		birthDate=#{birthDate},
+		</if>
+		synopsis=#{synopsis},
+		education=#{education},
+		industry=#{industry},
+		occupation=#{occupation}
+		where userId=#{userId}
+	</update>
+	<!-- 查询用户详情 -->
+	<select id="selUserBasic" resultType="hashmap" parameterType="hashmap">
+		select userId,userUrl,nickName,sex,birthDate,synopsis,education,industry,occupation from userinfo 
+		where userId=#{userId}
+	</select>
+	<!-- 通过手机号和密码查找用户 -->
+	<select id="login" parameterType="hashmap" resultType="hashMap">
+		select * from userinfo where (telenumber=#{telenumber} or userName=#{telenumber})
+		<if test="userPwd!=null and userPwd!=''">
+			and userPwd=#{userPwd}
+		</if>
+		and isAdmin=0 and isDelete=0 and isFreeze=1
+	</select>
+	<!-- 添加用户地址 -->
+	<insert id="addAddress" parameterType="hashmap">
+		insert into deliveraddress (userId,userName,receiver,phone,province,city,county,detailedAddress,isDefault,addTime,isDel,userType)
+		value(#{userId},#{userName},#{receiver},#{phone},#{province},#{city},#{county},#{detailedAddress},#{isDefault},now(),0,1)
+	</insert>
+	<!-- 修改用户地址 -->
+	<update id="updateAddress" parameterType="hashmap">
+		update deliveraddress set userName=#{userName},receiver=#{receiver},phone=#{phone},province=#{province},city=#{city},county=#{county},
+		detailedAddress=#{detailedAddress},isDefault=#{isDefault},addTime=now(),isDel=0 where userId=#{userId} and Id=#{Id}
+	</update>
+	
+	<!-- 保存个人认证信息 -->
+	<update id="authentication" parameterType="hashmap">
+		update userinfo set realname=#{realname},documentType=#{documentType},IDpic=#{IDpic},oneselfPic=#{oneselfPic},identitynumber=#{identitynumber},approve=0
+		where userId=#{userId}
+	</update>
+	<!-- 查询密码 -->
+	<select id="selPwd" resultType="String" parameterType="hashmap">
+		select userPwd from userinfo 
+		<where>
+			<if test="userId != null and userId != ''">
+				and userId=#{userId}
+			</if>
+			<if test="telenumber != null and telenumber != ''">
+				and telenumber = #{telenumber}
+			</if>
+		</where>
+	</select>
+	<!-- 修改密码 -->
+	<update id="updatePwd" parameterType="hashmap">
+		update userinfo set userPwd=#{password} 
+		<where>
+			<if test="userId != null and userId != ''">
+				and userId=#{userId}
+			</if>
+			<if test="telenumber != null and telenumber != ''">
+				and telenumber = #{telenumber}
+			</if>
+		</where>
+	</update>
+	<!-- 设置专栏信息 -->
+	<insert id="setColumns" parameterType="hashmap">
+		insert into writer_extendMsg (userId,name,identitynumber,questionPrice,cardNo) values(#{userId},#{realname},#{identitynumber},#{questionPrice},#{cardNo})
+	</insert>
+	<!-- 用户添加收藏 -->
+	<insert id="addCollect" parameterType="hashmap">
+		insert into favorites (dataId,dataType,favoriteType,userId,addTime) values(#{dataId},#{dataType},#{favoriteType},#{userId},now())
+	</insert>
+	<!-- 查询是否已经收藏了 -->
+	<select id="selIsfavorites" resultType="hashmap" parameterType="hashmap">
+		select * from favorites where userId=#{userId} and dataId=#{dataId} and dataType=#{dataType} and favoriteType=#{favoriteType}
+	</select>
+	<!-- 获取用户打赏列表 -->
+	<select id="selRewardLoglist" resultType="hashmap" parameterType="hashmap">
+		select r.id,r.money,r.remark,date_format(r.inputDate , '%Y-%m-%d %T') inputDate,u.realname,u.nickName,u.userUrl from rewardlog r
+		<if test="type==1">
+			left join userinfo u on u.userId=r.beRewarding
+		</if>
+		<if test="type==2">
+			left join userinfo u on u.userId=r.rewardPeople
+		</if>
+		where 1=1 and r.state=1
+		<if test="type==1">
+			and r.rewardPeople=#{userId}
+		</if>
+		<if test="type==2">
+			and r.beRewarding=#{userId}
+		</if>
+		order by r.inputDate desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 获取用户打赏列表数量 -->
+	<select id="selRewardLogcount" resultType="long" parameterType="hashmap">
+		select count(r.id) from rewardlog r
+		<if test="type==1">
+			left join userinfo u on u.userId=r.rewardPeople
+		</if>
+		<if test="type==2">
+			left join userinfo u on u.userId=r.beRewarding
+		</if>
+		where 1=1 and r.state=1 and  u.userId=#{userId}
+	</select>
+	<!-- 获取用户提问列表 -->
+	<select id="getInterlocutionList" parameterType="hashmap" resultType="hashMap">
+		SELECT i.id,o.title,i.content,i.answerState,o.picUrl,o.name,
+		date_format(i.inputDate , '%Y-%m-%d %T') inputDate,lecturer
+		,i.answer,i.answerType,i.musicUrl FROM `interlocution` i
+		LEFT JOIN userinfo u on i.lecturer=u.userId
+		LEFT JOIN classhour c on i.ondemandId=c.hourId
+		left join ondemand o on i.ondemandId=o.ondemandId
+		where i.questionState=1 and i.status=1
+		<if test="type==1">
+			and i.questioner=#{userId}
+		</if>
+		<if test="type==2">
+			and i.lecturer=#{userId}
+		</if>
+		ORDER BY i.inputDate desc
+		limit #{start},#{pageSize}
+	</select>
+	<select id="getInterlocutionCount" parameterType="hashmap" resultType="long">
+		select count(0) from `interlocution` where questionState=1 and status=1
+		<if test="type==1">
+			and questioner=#{userId}
+		</if>
+		<if test="type==2">
+			and lecturer=#{userId}
+		</if>
+	</select>
+	<!-- 获取提问详情 -->
+	<select id="getInterlocution" parameterType="int" resultType="hashMap">
+		SELECT content,answer from `interlocution` where id=#{id} 
+	</select>
+	<!-- 用户添加笔记 -->
+	<insert id="createNode" parameterType="hashmap">
+		INSERT INTO `node`(userId,hourId,content,nodeTime,addTime) VALUES 
+		(#{userId},#{hourId},#{content},#{nodetime},now());
+	</insert>
+	<!-- 获取用户笔记列表 -->
+	<select id="getNodeList" parameterType="int" resultType="hashmap">
+		SELECT n.id,n.hourId,u.userUrl,o.`name`,o.ondemandId,c.`title` as title,c.abstracts,n.content, date_format(n.addTime,'%Y-%m-%d %T') addTime,n.nodeTime from node n
+		JOIN  classhour c on c.hourId=n.hourId
+		join ondemand o on o.ondemandId=c.ondemandId
+		LEFT JOIN ondemand_teacher ot on o.ondemandId=ot.ondemandId
+		LEFT JOIN userinfo u on ot.teacherId=u.userId
+		where n.userId=#{userId} 
+		ORDER BY n.addTime desc
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 获取用户笔记总个数 -->
+	<select id="getNodeCount" parameterType="int" resultType="long">
+		select count(0) from `node` where userId = #{userId};
+	</select>
+	<delete id="delNode" parameterType="int">
+		delete from `node` where userId = #{userId} and id in
+		<foreach collection="list" index="index" separator="," item="item" open="(" close=")">
+			#{item}
+		</foreach> 
+	</delete>
+	<!-- 通过购物车的id获取期次id -->
+	<select id="getPubIds" parameterType="hashmap" resultType="hashmap">
+		select s.desc from shopcart s
+		where FIND_IN_SET(s.id,#{productId}) and s.producttype=2
+	</select>
+	<!-- 通过购物车的id获取期次id优惠券用到 -->
+	<select id="getPubIdsCoupon" parameterType="hashmap" resultType="hashmap">
+		SELECT s.*,sum(s.count*s.buyprice) subprice,p.id period ,b.paperPrice bookPrice,b.id bookId  FROM `shopcart` s
+		join book b on s.productid = b.id
+		join publishingplan pl on b.period = pl.id
+		join periodical p on pl.periodicalId = p.id
+		where FIND_IN_SET(s.id,#{productId}) and producttype=2
+		GROUP BY period
+	</select>
+	<!-- 通过期次的id获取期刊id -->
+	<select id="getPeriods" parameterType="hashmap" resultType="hashmap">
+		SELECT DISTINCT p.id from periodical p
+		LEFT JOIN publishingplan pp on p.id = pp.periodicalId
+		where pp.id in
+		<foreach collection="pubIds" index="index" separator="," item="item" open="(" close=")">
+			#{item}
+		</foreach>  
+	</select>
+	<!-- 通过商品获取用户符合的代金券 -->
+	<select id="getVoucherByType" parameterType="hashmap" resultType="hashmap">
+		SELECT cu.id Id,c.`name`,c.price,c.couponType,
+		date_format(c.startTime,'%Y-%m-%d')startTime,
+		date_format(c.endTime,'%Y-%m-%d') endTime,
+		c.pinleiGoodsType, c.dingxiangGoodsType, c.dingxiangGoodsName
+		FROM `voucher` c
+		LEFT JOIN voucher_user cu on c.Id=cu.voucherId
+		where cu.userId=#{userId} and c.isDel=0 and c.state=0 and c.startTime &lt; now() and c.endTime &gt; now() and cu.useState=0
+		and ((c.couponType=1 and FIND_IN_SET(#{type},c.pinleiGoodsType)) or 
+		(c.couponType=2 and c.dingxiangGoodsType=#{type} and FIND_IN_SET(c.dingxiangGoodsId,#{productId})))
+		<if test="type==3 or type==4">
+		UNION ALL
+			select cu.Id,c.`name`,c.price,
+			c.couponType,date_format(c.startTime,'%Y-%m-%d %T')startTime,
+			date_format(c.endTime,'%Y-%m-%d %T') endTime,
+			c.pinleiGoodsType, c.dingxiangGoodsType, c.dingxiangGoodsName
+			from voucher c
+			LEFT JOIN userinfo u on c.dingxiangGoodsId=u.userId
+			LEFT JOIN ondemand_teacher ot on u.userId = ot.teacherId
+			LEFT JOIN ondemand o on ot.ondemandId = o.ondemandId
+			LEFT JOIN voucher_user cu on cu.voucherId = c.Id
+			where c.dingxiangGoodsType=1 and c.couponType=2 and o.ondemandId=#{productId}
+			and cu.userId = #{userId} and c.isDel=0 and c.state=0 and c.startTime &lt; now() and c.endTime &gt; now() and cu.useState=0
+		</if>
+	</select>
+	<!-- 通过商品获取用户符合的优惠券 -->
+	<select id="getCouponsByType" parameterType="hashmap" resultType="hashmap">
+		SELECT cu.id Id,c.`name`,c.manprice,c.jianprice,c.couponType,
+		date_format(c.startTime,'%Y-%m-%d')startTime,
+		date_format(c.endTime,'%Y-%m-%d') endTime,
+		c.pinleiGoodsType, c.dingxiangGoodsType, c.dingxiangGoodsName
+		FROM `coupon` c
+		LEFT JOIN coupon_user cu on c.Id=cu.couponId
+		where cu.userId=#{userId} and c.isDel=0 and c.state=0 and c.startTime &lt; now() and c.endTime &gt; now() and cu.useState=0
+		and #{price} &gt;= c.manprice 
+		and ((c.couponType=1 and FIND_IN_SET(#{type},c.pinleiGoodsType)) or 
+		(c.couponType=2 and c.dingxiangGoodsType=#{type} and FIND_IN_SET(c.dingxiangGoodsId,#{productId})))
+		<if test="type==3 or type==4">
+		UNION ALL
+			select cu.Id,c.`name`,c.manprice,c.jianprice,
+			c.couponType,date_format(c.startTime,'%Y-%m-%d %T')startTime,
+			date_format(c.endTime,'%Y-%m-%d %T') endTime,
+			c.pinleiGoodsType, c.dingxiangGoodsType, c.dingxiangGoodsName
+			from coupon c
+			LEFT JOIN userinfo u on c.dingxiangGoodsId=u.userId
+			LEFT JOIN ondemand_teacher ot on u.userId = ot.teacherId
+			LEFT JOIN ondemand o on ot.ondemandId = o.ondemandId
+			LEFT JOIN coupon_user cu on cu.couponId = c.Id
+			where c.dingxiangGoodsType=1 and c.couponType=2 and o.ondemandId=#{productId}
+			and #{price} &gt;= c.manprice  
+			and cu.userId = #{userId} and c.isDel=0 and c.startTime &lt; now() and c.state=0 and c.endTime &gt; now() and cu.useState=0
+		</if>
+	</select><!-- 通过商品获取用户符合的优惠券只查期刊的并且品类是所有期刊 -->
+	<select id="getCouponsByTypePinlei" parameterType="hashmap" resultType="hashmap">
+		SELECT cu.id Id,c.`name`,c.manprice,c.jianprice,c.couponType,
+		date_format(c.startTime,'%Y-%m-%d')startTime,
+		date_format(c.endTime,'%Y-%m-%d') endTime,
+		c.pinleiGoodsType, c.dingxiangGoodsType, c.dingxiangGoodsName
+		FROM `coupon` c
+		LEFT JOIN coupon_user cu on c.Id=cu.couponId
+		where cu.userId=#{userId} and c.isDel=0 and c.state=0 and c.startTime &lt; now() and c.endTime &gt; now() and cu.useState=0
+		and #{price} &gt;= c.manprice 
+		and ((c.couponType=1 and FIND_IN_SET(0,c.pinleiGoodsType)) or 
+		(c.couponType=1 and FIND_IN_SET(2,c.pinleiGoodsType)))
+	</select>
+	<!-- 获取用户优惠券列表 -->
+	<select id="getCouponsCount" parameterType="hashmap" resultType="long">
+		SELECT count(0) FROM `coupon` c
+		LEFT JOIN coupon_user cu on c.Id=cu.couponId
+		where cu.userId=#{userId} and c.isDel=0 and c.state=0
+		<if test="type==1">
+			and c.endTime &gt; now() and cu.useState=0
+		</if>
+		<if test="type==0">
+			and c.endTime &lt; now() and cu.useState=0
+		</if>
+		<if test="type==2">
+			and cu.useState=1
+		</if>
+	</select>
+	<!-- 获取用户代金券列表 -->
+	<select id="getVoucherCount" parameterType="hashmap" resultType="long">
+		SELECT count(0) FROM `voucher` v
+		LEFT JOIN voucher_user vu on v.Id=vu.voucherId
+		where vu.userId=#{userId} and v.isDel=0 and v.state=0
+		<if test="type==1">
+			and v.endTime &gt; now() and vu.useState=0
+		</if>
+		<if test="type==0">
+			and v.endTime &lt; now() and vu.useState=0
+		</if>
+		<if test="type==2">
+			and vu.useState=1
+		</if>
+	</select>
+	<select id="getCoupons" parameterType="hashmap" resultType="hashmap">
+		SELECT cu.id Id,`name`,c.manprice,c.jianprice,c.couponType,
+		date_format(startTime,'%Y-%m-%d')startTime,date_format(endTime,'%Y-%m-%d') endTime,
+		c.pinleiGoodsType, c.dingxiangGoodsType, c.dingxiangGoodsName
+		FROM `coupon` c
+		LEFT JOIN coupon_user cu on c.Id=cu.couponId
+		where cu.userId=#{userId} and c.isDel=0 and c.state=0
+		<if test="type==1">
+			and c.endTime &gt; now() and cu.useState=0
+		</if>
+		<if test="type==0">
+			and c.endTime &lt; now() and cu.useState=0
+		</if>
+		<if test="type==2">
+			and cu.useState=1
+		</if>
+		order by c.startTime desc
+		limit #{start},#{pageSize}
+	</select>
+	<select id="getVouchers" parameterType="hashmap" resultType="hashmap">
+		SELECT vu.id Id,`name`,v.price,v.couponType,
+		date_format(startTime,'%Y-%m-%d')startTime,date_format(endTime,'%Y-%m-%d') endTime,
+		v.pinleiGoodsType, v.dingxiangGoodsType, v.dingxiangGoodsName
+		FROM `voucher` v
+		LEFT JOIN voucher_user vu on v.Id=vu.voucherId
+		where vu.userId=#{userId} and v.isDel=0 and v.state=0
+		<if test="type==1">
+			and v.endTime &gt; now() and vu.useState=0
+		</if>
+		<if test="type==0">
+			and v.endTime &lt; now() and vu.useState=0
+		</if>
+		<if test="type==2">
+			and vu.useState=1
+		</if>
+		order by v.startTime desc
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 查询用户信息 -->
+	<select id="getUserMsg" resultType="hashmap" parameterType="hashmap">
+		SELECT u.userUrl,u.nickName,case when userPwd is not null then 1 else 0 end AS isHasPassword,u.realname,IFNULL(we.vipGrade,0) vipGrade,IFNULL(ua.balance,0.00) balance,u.userType
+		,u.telenumber ,u.sex ,u.birthDate ,u.remark ,u.education ,u.industry ,u.occupation ,u.synopsis
+		from userinfo u 
+		LEFT JOIN writer_extendmsg we on we.userId=u.userId
+		LEFT JOIN useraccount ua on ua.customerId=u.userId
+		where u.userId=#{userId}
+	</select>
+	<!-- 我的优惠券 -->
+	<select id="selUserCouponCount" resultType="int" parameterType="hashmap">
+		SELECT COUNT(1) 
+		FROM coupon_user 
+		JOIN coupon ON coupon_user.couponId=coupon.Id
+		WHERE 
+		coupon_user.userId=#{userId} and coupon.isDel=0 and coupon.state=0 
+		and coupon.endTime &gt; now()  and coupon_user.useState=0
+	</select>
+	<!-- 我的代金券 -->
+	<select id="selUserVoucherCount" resultType="int" parameterType="hashmap">
+		SELECT COUNT(1) 
+		FROM voucher_user 
+		JOIN voucher ON voucher_user.voucherId=voucher.Id
+		WHERE
+		voucher_user.userId=#{userId} and voucher.isDel=0 and voucher.state=0
+		and voucher.endTime &gt; now() and voucher_user.useState=0
+	</select>
+	<!-- 我的提问数 -->
+	<select id="userTwCount" resultType="int" parameterType="hashmap">
+		SELECT count(0) from interlocution where questioner=#{userId} and questionState=1 and status=1
+	</select>
+	<!-- 我的旁听数 -->
+	<select id="userPTing" resultType="int" parameterType="hashmap">
+		SELECT count(0) from audit where userId=#{userId} and status=1
+	</select>
+	<!-- 我的打赏数 -->
+	<select id="userReward" resultType="int" parameterType="hashmap">
+		SELECT count(0) FROM rewardlog where rewardPeople=#{userId} and state=1
+	</select>
+	<!-- 我的关注数 -->
+	<select id="myfollowCount" resultType="int" parameterType="hashmap">
+		select count(0) from favorites where userId=#{userId} and favoriteType=2 and dataType=5
+	</select>
+	<!-- 我购买的数量 -->
+	<select id="userBuyCount" resultType="int" parameterType="hashmap">
+		SELECT count(ot.id) from orderitem ot
+		LEFT JOIN `order` o on o.id=ot.orderId
+		LEFT join wechat_userinfo w on w.openId=o.openId
+		WHERE
+		(o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId}))
+		and o.orderstatus in(2,3,4,5)
+	</select>
+	<!-- 用户类型 -->
+	<select id="selectUserType" resultType="String" parameterType="String">
+		select userType from userinfo where userId=#{_parameter}
+	</select>
+	<!-- 查询账户余额 -->
+	<select id="selectBalance" resultType="hashmap" parameterType="String">
+		select IFNULL(balance,0) balance from useraccount where customerId=#{_parameter}
+	</select>
+	<!-- 添加打赏记录 -->
+	<insert id="addRewardlog" parameterType="hashmap">
+		<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="rewardlogId">    
+          SELECT LAST_INSERT_ID() AS id 
+	    </selectKey>
+		insert into rewardlog (rewardPeople,beRewarding,money,remark,inputDate,state)
+		values (#{rewardPeople},#{beRewarding},#{money},#{remark},now(),0)
+	</insert>
+	<!-- 添加支付记录 -->
+	<insert id="rewardPaylog" parameterType="hashmap">
+		<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="paylogId">    
+          SELECT LAST_INSERT_ID() AS id 
+	    </selectKey>
+		insert into paylog (payer,source,sourceId,payTime,price,orderNo,tradeNo)
+		values (#{rewardPeople},5,#{rewardlogId},now(),#{money},#{orderno},#{tradeNo})
+	</insert>
+	
+	<!-- 查询扩展信息表 -->
+	<select id="selectExtends" resultType="hashmap" parameterType="hashmap">
+		select * from writer_extendmsg where userId=#{userId}
+	</select>
+	<!-- 初始化扩展信息记录 -->
+	<insert id="addExtends" parameterType="hashmap">
+		insert into writer_extendmsg
+		<trim prefix="(" suffix=")" suffixOverrides="," >
+			userId,identitynumber,
+			<if test='vipGrade != null'>
+	             vipGrade,
+	        </if>
+	        <if test='rewardNum != null'>
+	             rewardNum,
+	        </if>
+		</trim>
+		<trim prefix="values (" suffix=")" suffixOverrides="," >
+			#{userId},#{identitynumber},
+			<if test='vipGrade != null'>
+	             #{vipGrade},
+	        </if>
+	        <if test='rewardNum != null'>
+	             #{rewardNum},
+	        </if>
+		</trim>
+	</insert>
+	<!-- 修改专家粉丝数 -->
+	<update id="updateFollowNum" parameterType="hashmap">
+		update writer_extendmsg set fansNum=fansNum+1 where userId=#{dataId}
+	</update>
+	<!-- 修改手机号 -->
+	<update id="updatePhone" parameterType="hashmap">
+		update userinfo set telenumber=#{newPhone} where userId=#{userId} and telenumber=#{oldPhone}
+	</update>
+</mapper>
+	

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="RechargeDao">
+	 <sql id="ww"> 
+			<if test="teacherName!=null and teacherName!='' "> 
+				and u.realName like "%"#{teacherName}"%" 
+			</if> 
+			<if test="dateStart!=null and dateStart!='' "> 
+				and ul.time like "%"#{dateStart}"%" 
+			</if>
+			<if test="status!=null and status!='' and status==1 "> 
+				and l.status =1
+			</if> 
+			<if test="status!=null and status!='' and status!=1 "> 
+				and l.status<![CDATA[!= 1]]>
+			</if> 
+		 </sql> 
+	<!-- 查询充值列表数据-->
+	<select id="getrechargeList" parameterType="hashmap" resultType="hashmap">
+		select l.id,l.orderno,u.username,
+		date_format(ul.time, '%Y-%m-%d %H:%i') time,u.realName,
+		date_format(l.payTime, '%Y-%m-%d %H:%i')payTime,
+		l.payMethodName,l.price,l.status
+		from paylog l
+		JOIN userinfo u
+		ON l.payer=u.userId
+		JOIN useraccountlog ul ON l.sourceid=ul.id
+		where ul.type=1 and source=2 <include refid="ww"></include>
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 查询充值总条数 -->
+	<select id="selTotalCount" parameterType="hashmap" resultType="long">
+		select count(l.id) from paylog l
+		JOIN useraccountlog ul ON
+		ul.Id=l.sourceId
+		JOIN userinfo u ON
+		u.userId=ul.userId
+		where ul.type=1 AND l.source=2 <include refid="ww"></include>
+	</select>
+	<!-- 通过id查询详情 -->
+	<select id="getContentById" parameterType="int" resultType="hashmap">
+		select p.*,date_format(p.payTime, '%Y-%m-%d %H:%i')payTimes,u.realName,date_format(ul.time, '%Y-%m-%d %H:%i')time from paylog p 
+		LEFT JOIN userinfo u on p.payer=u.userId
+		LEFT JOIN useraccountlog ul on p.sourceid = ul.id
+		where p.id=#{paylogid}
+	</select>
+</mapper>

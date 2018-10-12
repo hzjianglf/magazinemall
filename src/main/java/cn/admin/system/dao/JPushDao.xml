@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+	<mapper namespace="JPushDao">
+	<!-- 根据问题id查询提问者设备号 -->
+	<select id="selPhoneIdByQuestionId" parameterType="hashMap" resultType="string">
+	SELECT u.phoneId FROM interlocution i 
+		LEFT JOIN userinfo u
+		on i.questioner = u.userId 
+	where i.id = #{id}
+	</select>
+	<!-- 根据问题id查询专家id -->
+	<select id="selTeacherIdByQuestionId" parameterType="int" resultType="string">
+		SELECT u.phoneId FROM interlocution i 
+			LEFT JOIN userinfo u
+			on i.lecturer = u.userId 
+		where i.id = #{sourceId}	
+	</select>
+	</mapper>

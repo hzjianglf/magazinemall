@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="logisticsDao">
+	<!-- count -->
+	<select id="selCount" resultType="long">
+		select count(id) from deliveraddress 
+		where userType=2 and isDel=0
+	</select>
+	<!-- 列表 -->
+	<select id="selList" resultType="hashmap" parameterType="hashmap">
+		select Id,userName,phone,GROUP_CONCAT(province,city,county,detailedAddress) address,case isDefault when 1 then '是'  ELSE '否' end isDefault
+ 		from deliveraddress
+		where  userType=2 and isDel=0
+		GROUP BY Id
+		order by addTime desc
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 新增 -->
+	<insert id="add" parameterType="hashmap">
+		insert into deliveraddress (userId,userName,receiver,phone,province,city,county,detailedAddress,isDefault,addTime,userType)
+		values(#{userId},#{userName},#{receiver},#{phone},#{provid},#{cityid},#{areaid},#{detailedAddress},#{isDefault},now(),2)
+	</insert>
+	<!-- 查询详情 -->
+	<select id="selById" parameterType="string" resultType="hashmap">
+		select * from deliveraddress where Id=#{id}
+	</select>
+	<!-- 编辑 -->
+	<update id="edit" parameterType="hashmap">
+		update deliveraddress set userId=#{userId},userName=#{userName},
+		receiver=#{receiver},phone=#{phone},province=#{provid},
+		city=#{cityid},county=#{areaid},detailedAddress=#{detailedAddress},isDefault=#{isDefault}
+		where Id=#{Id}
+	</update>
+	<!-- 删除 -->
+	<update id="delete" parameterType="hashmap">
+		update deliveraddress set isDel=1 where Id=#{Id}
+	</update>
+	<update id="updIsDefault">
+		update deliveraddress set isDefault=0 where userType=2
+	</update>
+	
+</mapper>

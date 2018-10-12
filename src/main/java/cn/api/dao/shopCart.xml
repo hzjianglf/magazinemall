@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="shopCartDao">
+<!-- 购物车 -->
+	<!-- 加入购物车 -->
+	<insert id="createCardShop" parameterType="hashmap"  useGeneratedKeys="true" keyProperty="id" >
+		<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="id">    
+	          SELECT LAST_INSERT_ID() AS ID 
+		</selectKey>
+		insert into shopcart (userId,productid,productname,productpic,`desc`,count,price,producttype,addTime,buyprice,type,subType) values
+		(#{userId},#{productid},#{productname},#{productpic},#{desc},#{count},#{price},#{producttype},now(),#{buyprice},#{type},#{subType})
+	</insert>
+	
+	<!-- 批量添加赠品到购物车-->
+	<insert id="bathInsertShopCart" parameterType="hashMap">
+		insert into shopcart (userId,productid,productname,productpic,`desc`,count,price,producttype,addTime,buyprice,type,subType) values
+		<foreach collection="list" item="item" separator=",">
+			(#{userId},#{item.productid},#{item.productname},#{item.productpic},#{desc},#{count},#{item.price},#{item.productType},now(),0,#{type},#{subType})
+		</foreach>
+	</insert>
+	
+	<!-- 获取购物车项对应的赠品列表 -->
+	<select id="selShopCartListForZs" parameterType="hashMap" resultType="hashMap">
+		SELECT id,productid,productname,productpic,count,price,producttype,buyprice,subType,`desc`
+		FROM shopcart 
+		WHERE subType=5 AND userId=#{userId}
+		<if test="not idList.isEmpty">
+			AND `desc`  IN
+			<foreach collection="idList" item="item" open="(" separator="," close=")">
+				#{item}
+			</foreach>
+		</if>
+		ORDER BY addTime desc
+	</select>
+	<!-- 更新赠送的商品数量(购物车项加减) -->
+	<update id="updateZsItemCount" parameterType="hashMap">
+		UPDATE shopcart SET count=#{ncount} where subType=5 AND `desc`=#{shopCartId}
+	</update>
+	<!-- 更新赠送的商品数量(重复加入购物车) -->
+	<update id="updSong" parameterType="hashMap">
+		UPDATE shopcart SET count=count+#{count} where subType=5 AND `desc`=#{shopCartId}
+	</update>
+	<!-- 清除购物车中未支付的直接购买项 -->
+	<delete id="delNotPay" parameterType="hashmap">
+		DELETE from shopcart where userId =#{userId} and type=1
+	</delete>
+	<!-- 通过用户查询购物车信息总价格-->
+	<select id="selDataByUserId" parameterType="hashmap" resultType="double">
+		select sum(buyprice*count) totalprice from shopcart where userId=#{userId}
+	</select>
+	<!--  查询购物车信息的类别 -->
+	<select id="selTypeByIds" parameterType="string" resultType="hashmap">
+		select  DISTINCT producttype from shopcart where  FIND_IN_SET(id,#{cartIds})
+	</select>
+	<!--  通过用户查询购物车信息-->
+	<select id="selListByuserId" parameterType="hashmap" resultType="hashmap">
+		select  * from shopcart where userId=#{userId} 
+	</select>
+	<!-- 删除购物车 -->
+	<delete id="delDataByUserId" parameterType="hashmap">
+		delete FROM shopcart where userId=#{userId}
+	</delete>
+	<!-- 查询购物车是否已有该商品 -->
+	<select id="isCardShop" parameterType="hashmap" resultType="int">
+		select id from shopcart where userId=#{userId}
+		and producttype=#{producttype} and type=0 and subType=#{subType} and productid=#{productid}
+		<if test="desc!='' and desc!=null">
+			AND  `desc` = #{desc}
+		</if>
+	</select>
+	<!-- 查看是否已经购买电子书 -->
+	<select id="isByEbook" parameterType="hashmap" resultType="int">
+		SELECT count(0) FROM orderitem ot
+		LEFT JOIN `order` o on ot.orderId=o.id
+		where ot.producttype=16 and o.userId=#{userId} and o.paystatus=1 AND
+		((ot.productid=#{productid} and ot.`desc`=#{desc})or(FIND_IN_SET(#{desc},ot.`desc`) and subType!=1))
+	</select>
+	<select id="isYear" parameterType="int" resultType="string">
+		select year from publishingplan where id=#{id}
+	</select>
+	<select id="isPeriod" parameterType="hashmap" resultType="int">
+		select p.periodicalId from book b
+		LEFT JOIN publishingplan p on b.period=p.id
+		where b.id=#{productid}
+	</select>
+	<select id="isYuanperiod" parameterType="int" resultType="int">
+		select p.periodicalId from book b 
+		LEFT JOIN publishingplan p on b.period= p.id
+		where b.id = 
+		(select productid from shopcart s where s.id=#{shopCartId})
+	</select>
+	<!-- 通过描述desc查找期次 -->
+	<select id="isName" parameterType="hashmap" resultType="string">
+		select describes from  publishingplan  where id in 
+		<foreach collection="list" item="item" separator="," open="(" close=")">
+			 #{item}
+		</foreach>
+	</select>
+	<!-- 通过id修改购物车信息 -->
+	<update id="updCardShop" parameterType="hashmap">
+		UPDATE shopcart SET
+		count=count+#{count} where id=#{shopCartId}
+	</update>
+	<!-- 查询购物车子项的类型 -->
+	<select id="selShopCartById" parameterType="hashmap" resultType="string">
+		select producttype from shopcart where id=#{shopCartId}
+	</select>
+	<!-- 查询购物车购买数量 -->
+	<select id="selShopCartCount" parameterType="hashmap" resultType="int">
+		select count from shopcart where id=#{shopCartId}	
+	</select>
+	<!-- 查询购物车子项的价格 -->
+	<select id="selShopCartPrice" parameterType="hashmap" resultType="string">
+		select buyprice from shopcart where id=#{shopCartId}
+	</select>
+	<!-- 查询购物车期刊的期次desc-->
+	<select id="selDesc" parameterType="hashmap" resultType="string">
+		select `desc` from shopcart where id=#{shopCartId}
+	</select>
+	<!-- 获取用户购物车总列表 -->
+	<select id="getShopCartList" parameterType="hashMap" resultType="hashmap">
+		select id,productid,productname,productpic,`desc`,count,price,producttype,buyprice,subType
+		from shopcart where userId=#{userId} and type=#{type} <![CDATA[ AND subType<>5]]>
+		<if test="producttype!=null">
+			AND producttype=2
+		</if>
+		<if test="ids!=null">
+		and id in
+			<foreach collection="ids"  separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+		ORDER BY addTime desc
+		<if test="start!=null and pageSize!=null">
+		limit #{start},#{pageSize}
+		</if>
+	
+	</select>
+	<select id="getShopCartListById" parameterType="hashMap" resultType="hashmap">
+		select id,productid,productname,productpic,`desc`,count,price,producttype,buyprice,subType
+		from shopcart where userId=#{userId}
+		<if test="producttype!=null">
+			AND producttype=2
+		</if> 
+		<if test="list!=null">
+		and id in
+			<foreach collection="list"  separator="," item="item" open="(" close=")">
+				#{item}
+			</foreach>
+		</if>
+		ORDER BY addTime desc
+	</select>
+	<select id="getShopCartCount" parameterType="int" resultType="long">
+		select count(0) from shopcart where userId=#{userId} and type=0
+	</select>
+	<!-- 修改商品的数量和价格 -->
+	<update id="updCountAndPrice" parameterType="hashMap">
+		UPDATE shopcart SET
+		count=#{ncount} where id=#{shopCartId}
+	</update>
+	<!-- 删除订单子项 -->
+	<delete id="deleteCarItem" parameterType="hashmap">
+		delete from shopcart where userId=#{userId} and id in
+		<foreach collection="list" item="item" separator="," open="(" close=")">
+			 #{item}
+		</foreach>
+	</delete>
+	<!-- 删除订单子项对应的赠送商品 -->
+	<delete id="deleteZsCarItem" parameterType="hashmap">
+		delete from shopcart where userId=#{userId} AND subType=5 and `desc` in
+		<foreach collection="list" item="item" separator="," open="(" close=")">
+			 #{item}
+		</foreach>
+	</delete>
+	
+	<!-- 查询期刊是否有库存 -->
+	<select id="isStock" parameterType="hashMap" resultType="int">
+		select IFNULL(stock,0) stock from book where period in
+		<foreach collection="list" item="item" separator="," open="(" close=")">
+			 #{item}
+		</foreach>
+	</select>
+	<!-- 查询期刊是否有下架-->
+	<select id="isState" parameterType="hashMap" resultType="int">
+		select IFNULL(state,0) state from book where period in
+		<foreach collection="list" item="item" separator="," open="(" close=")">
+			 #{item}
+		</foreach>
+	</select>
+	<!-- 查询购买纸质期刊的价格 -->
+	<select id="selTotalprice" parameterType="hashmap" resultType="string">
+		select paperPrice from book where id = #{productid}
+	</select>
+	<!-- 查询购买纸质期刊的原价格 -->
+	<select id="seloriginalPrice" parameterType="hashmap" resultType="string">
+		select originalPrice from book where id = #{productid}
+	</select>
+	<!-- 查询购买电子书的价格 -->
+	<select id="selEbookprice" parameterType="hashmap" resultType="string">
+		select ebookPrice from book where id = #{productid}
+	</select>
+	<!-- 查询是购买期刊的购物车项 -->
+	<select id="selBookIds" parameterType="hashmap" resultType="hashmap">
+		SELECT id FROM `shopcart` where id in 
+		<foreach collection="list" item="item" separator="," open="(" close=")">
+			 #{item}
+		</foreach>
+		and producttype=2;
+	</select>
+</mapper>

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="cn.dao.versionDao">
+	
+	<!-- 版本数量 -->
+	<select id="selectAboutVersionCount" parameterType="hashmap" resultType="long">
+		SELECT
+			count(id)
+		FROM
+			`appversion`
+		<where>
+		   <if test="versionNum !=null and versionNum !='' ">
+		       and id = #{versionNum}
+		   </if>
+		   <if test="versionName !=null and versionName !='' ">
+		       and name like CONCAT(CONCAT('%',#{versionName},'%'))
+		   </if>
+		   <if test="versionType !=null and versionType !='' ">
+		       and type = #{versionType}
+		   </if>
+		    <if test="versionStatus !=null and versionStatus !='' ">
+		       and status = #{versionStatus}
+		    </if>
+		</where>
+	</select>
+	<!-- 版本列表 -->
+	<select id="selectAboutVersion" parameterType="hashmap" resultType="hashmap">
+		SELECT
+		    id,
+			name,
+			versionCode,
+			CASE type WHEN 1 THEN '安卓版' WHEN 2 THEN 'ios版' END type,
+			DATE_FORMAT(time,'%Y-%m-%d %T') time,
+			CASE status WHEN 0 THEN '禁用' WHEN 1 THEN '启用' END status,
+			CASE isForceUpdate WHEN 0 THEN '否' WHEN 1 THEN '是' END isForceUpdate
+		FROM
+			`appversion`
+		<where>
+		   <if test="versionNum !=null and versionNum !='' ">
+		       and id = #{versionNum}
+		   </if>
+		   <if test="versionName !=null and versionName !='' ">
+		       and name like CONCAT(CONCAT('%',#{versionName},'%'))
+		   </if>
+		   <if test="versionType !=null and versionType !='' ">
+		       and type = #{versionType}
+		   </if>
+		    <if test="versionStatus !=null and versionStatus !='' ">
+		       and status = #{versionStatus}
+		    </if>
+		</where>
+		order by time desc
+		limit #{start},#{pageSize}
+	</select>
+	<insert id="newVersionToSave" parameterType="hashmap">
+		insert into `appversion`(name,versionCode,type,time,status,isForceUpdate,packageUrl,versionNum)
+		values
+		(#{name},#{versionCode},#{versionType},now(),#{versionStatus},#{isForceUpdate},#{packageUrl},#{versionNum})
+	</insert>
+	<select id="selByVersionId" parameterType="hashmap" resultType="hashmap">
+		SELECT
+		    id,
+			name,
+			versionCode,
+			CASE type WHEN 1 THEN '安卓版' WHEN 2 THEN 'ios版' END type,
+			DATE_FORMAT(time,'%Y-%m-%d %T') time,
+			CASE status WHEN 0 THEN '禁用' WHEN 1 THEN '启用' END status,
+			CASE isForceUpdate WHEN 0 THEN '否' WHEN 1 THEN '是' END isForceUpdate,
+			versionNum
+		FROM
+			`appversion`
+		where id = #{id}
+	</select>
+	<update id="newVersionToUpdate" parameterType="hashmap">
+	    UPDATE `appversion`
+	    <set>
+	       <if test="versionType !=null and versionType !='' ">
+	           type = #{versionType},
+		   </if>
+		   <if test="versionStatus !=null and versionStatus !='' ">
+	           STATUS = #{versionStatus},
+		   </if>
+		   <if test="isForceUpdate !=null and isForceUpdate !='' ">
+	           isForceUpdate = #{isForceUpdate},
+		   </if>
+		   <if test="versionNum !=null and versionNum !='' ">
+	           versionNum = #{versionNum},
+		   </if>
+		   <if test="name !=null and name !='' ">
+	           name = #{name},
+		   </if>
+	    </set>
+		WHERE
+		  id = #{Id}
+	</update>
+	<delete id="deleteVersionRecord" parameterType="hashmap">
+		delete from `appversion` where id = #{id}
+	</delete>
+	<!-- 通过版本类型获取最新版本信息 -->
+	<select id="sellatestVersionInfo" parameterType="int" resultType="hashmap">
+		SELECT
+		    id,
+			versionCode,
+			isForceUpdate,
+			packageUrl,
+			name versionName
+		FROM
+			`appversion`
+		where type = #{type}
+		order by time desc
+		limit 1
+	</select>
+</mapper>

@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="TransactionDao">
+
+	<sql id="pu">
+		<where>
+			<if test="orderNumber!=null and orderNumber!=''">
+				and orderNo like "%"#{orderNumber}"%"
+			</if>
+			<if test="buyer != null and buyer != ''">
+				and userName like "%"#{buyer}"%" 
+			</if>
+			<if test="dateStart != null and dateStart != ''">
+				<![CDATA[and payTime >= #{dateStart}]]>
+			</if>
+			<if test="dateEnd != null and dateEnd != ''">
+				<![CDATA[and payTime <= #{dateEnd}]]>
+			</if>
+			<if test="status != null and status != ''">
+				and payMethodName = #{status}
+			</if>
+		</where>
+	</sql>
+
+	<select id="purchaseCount" resultType="long" parameterType="hashmap">
+	  select count(*) from (
+		select	paylog.orderNo , 
+				DATE_FORMAT(`order`.addtime,'%Y-%m-%d') payTime, 
+				paylog.price ,
+				paylog.payMethodName , 
+				IFNULL(userinfo.nickName,userinfo.realName) AS userName ,
+				paylog.id paylogid
+			from paylog , `order` , userinfo , orderitem
+				where paylog.source = 1
+				and paylog.status = 1
+				and paylog.sourceId = `order`.id
+				and `order`.userId = userinfo.userId
+				and `order`.id = orderitem.orderId
+			union all
+		select	paylog.orderNo , 
+				DATE_FORMAT(interlocution.inputDate,'%Y-%m-%d') payTime , 
+				paylog.price ,
+				paylog.payMethodName , 
+				IFNULL(userinfo.nickName,userinfo.realName) AS userName  ,
+				paylog.id paylogid
+			from paylog , userinfo , interlocution
+		        where paylog.source = 3
+		        and paylog.status = 1
+		        and paylog.sourceId = interlocution.id
+		        and interlocution.questioner = userinfo.userId
+			union all
+		select	paylog.orderNo , 
+				DATE_FORMAT(audit.inputTime,'%Y-%m-%d') payTime , 
+				paylog.price , 
+				paylog.payMethodName , 
+				IFNULL(userinfo.nickName,userinfo.realName) AS userName  ,
+				paylog.id paylogid
+		    from paylog , userinfo , audit
+		        where paylog.source = 4
+		        and paylog.status = 1
+		        and paylog.sourceId = audit.id
+		        and audit.userId = userinfo.userId
+			union all
+		select	paylog.orderNo , 
+				DATE_FORMAT(rewardlog.inputDate,'%Y-%m-%d') payTime , 
+				paylog.price ,
+				paylog.payMethodName , 
+				IFNULL(userinfo.nickName,userinfo.realName) AS userName  ,
+				paylog.id paylogid
+		    from paylog , userinfo , rewardlog 
+		        where paylog.source = 5
+		        and paylog.status = 1
+		        and paylog.sourceId = rewardlog.id
+		        and rewardlog.rewardPeople = userinfo.userId) as infoall
+		<include refid="pu"></include>
+	</select>
+
+	<select id="purchaseData" resultType="hashmap" parameterType="hashmap">
+	  select orderNo , payTime , price , payMethodName , userName , paylogid , source from (
+		select paylog.orderNo , DATE_FORMAT(`order`.addtime,'%Y-%m-%d') payTime, paylog.price ,
+				paylog.payMethodName , IFNULL(userinfo.nickName,userinfo.realName) AS userName , paylog.id paylogid ,paylog.source
+				from paylog , `order` , userinfo ,orderitem
+				where paylog.source = 1
+				and paylog.status = 1
+				and paylog.sourceId = `order`.id
+				and `order`.userId = userinfo.userId
+				and `order`.id = orderitem.orderId
+			union all
+		select paylog.orderNo , DATE_FORMAT(interlocution.inputDate,'%Y-%m-%d') payTime , paylog.price ,
+				paylog.payMethodName , IFNULL(userinfo.nickName,userinfo.realName) , paylog.id paylogid ,paylog.source
+		        from paylog , userinfo , interlocution
+		        where paylog.source = 3
+		        and paylog.status = 1
+		        and paylog.sourceId = interlocution.id
+		        and interlocution.questioner = userinfo.userId
+			union all
+		select paylog.orderNo , DATE_FORMAT(audit.inputTime,'%Y-%m-%d') payTime , paylog.price , 
+				paylog.payMethodName , IFNULL(userinfo.nickName,userinfo.realName) , paylog.id paylogid , paylog.source
+		        from paylog , userinfo , audit
+		        where paylog.source = 4
+		        and paylog.status = 1
+		        and paylog.sourceId = audit.id
+		        and audit.userId = userinfo.userId
+			union all
+		select paylog.orderNo , DATE_FORMAT(rewardlog.inputDate,'%Y-%m-%d') payTime , paylog.price ,
+				paylog.payMethodName , IFNULL(userinfo.nickName,userinfo.realName) , paylog.id paylogid , paylog.source
+		        from paylog , userinfo , rewardlog 
+		        where paylog.source = 5
+		        and paylog.status = 1
+		        and paylog.sourceId = rewardlog.id
+		        and rewardlog.rewardPeople = userinfo.userId) as infoall
+		<include refid="pu"></include>
+		order by payTime desc
+		<if test="pageSize != '' and pageSize != null">
+		limit #{start},#{pageSize}
+		</if>
+	</select>
+	
+	<select id="dingdanzhifu" resultType="hashmap" parameterType="hashmap">
+		        SELECT paylog.orderNo as orderNo , 
+				paylog.price as price , 
+				`order`.deliverstatus as deliverstatus , 
+				`order`.orderstatus as orderstatus ,
+				IFNULL(userinfo.nickName,userinfo.realName) as userName , 
+				DATE_FORMAT(`order`.addtime,'%Y-%m-%d %h:%m:%s') as addtime , 
+				DATE_FORMAT(paylog.payTime,'%Y-%m-%d %h:%m:%s')  as payTime,
+				orderitem.receivername as receivername , 
+				orderitem.receiverphone as receiverphone , 
+				orderitem.receiverAddress as receiverAddress ,
+				orderitem.productname as productname , 
+				orderitem.producttype as producttype , 
+				orderitem.buyprice as dprice , 
+				orderitem.buyprice* orderitem.count as buyprice ,
+				orderitem.count as count,
+				orderitem.productpic as productpic, 
+				CASE WHEN `order`.couponId IS NULL THEN 0 ELSE 1 END AS userCoupon,
+				IFNULL(coupon.jianprice,0) AS couponMoney
+				FROM paylog
+				JOIN `order` ON paylog.sourceId = `order`.id
+				JOin userinfo ON `order`.userId = userinfo.userId
+				JOIN orderitem ON `order`.id = orderitem.orderId
+				LEFT JOIN coupon ON `order`.couponId=coupon.Id
+				where paylog.id = #{paylogid}
+	</select>
+	
+	<select id="tiwen" resultType="hashmap" parameterType="hashmap">
+		select	paylog.orderNo as orderNo , 
+				paylog.price as price , 
+				interlocution.answerState as answerState,
+				interlocution.questionState as questionState , 
+				IFNULL(userinfo.nickName,userinfo.realName) as userName , 
+				DATE_FORMAT(interlocution.inputDate,'%Y-%m-%d %h:%m:%s') inputDate ,
+		        DATE_FORMAT(paylog.payTime,'%Y-%m-%d %h:%m:%s') payTime ,  
+		        paylog.payMethodName as payMethodName , 
+		        interlocution.content as content , 
+		        interlocution.money as dprice
+			from paylog , userinfo , interlocution
+			    where paylog.id = #{paylogid}
+				and paylog.sourceId = interlocution.id
+				and interlocution.questioner = userinfo.userId
+	</select>
+	
+	<select id="pangting" resultType="hashmap" parameterType="hashmap">
+		select	paylog.orderNo as orderNo , 
+				paylog.price as price , 
+				IFNULL(userinfo.nickName,userinfo.realName) as userName , 
+				DATE_FORMAT(paylog.payTime,'%Y-%m-%d %h:%m:%s') payTime , 
+				DATE_FORMAT(audit.inputTime,'%Y-%m-%d %h:%m:%s') inputDate , 
+				paylog.payMethodName as payMethodName ,
+		    	audit.price as dprice , 
+		    	interlocution.content as content
+			from paylog , userinfo , audit , interlocution 
+			    where paylog.id = #{paylogid}
+			    and paylog.sourceId = audit.id
+				and audit.userId = userinfo.userId
+			    and interlocution.id = audit.interlocutionId
+	</select>
+	
+	<select id="dashang" resultType="hashmap" parameterType="hashmap">
+		select	paylog.orderNo as orderNo , 
+				paylog.price as price , 
+				IFNULL(userinfo.nickName,userinfo.realName) as userName , 
+				DATE_FORMAT(paylog.payTime,'%Y-%m-%d %h:%m:%s') payTime , 
+				DATE_FORMAT(rewardlog.inputDate,'%Y-%m-%d %h:%m:%s') inputDate , 
+				paylog.payMethodName as payMethodName ,
+		    	rewardlog.money as dprice , 
+		    	uinfo.userName as content
+			from paylog, userinfo , rewardlog , userinfo uinfo 
+			    where paylog.id = #{paylogid}
+			    and paylog.sourceId = rewardlog.id
+				and rewardlog.rewardPeople = userinfo.userId
+			    and uinfo.userId = rewardlog.beRewarding
+	</select>
+	
+</mapper>

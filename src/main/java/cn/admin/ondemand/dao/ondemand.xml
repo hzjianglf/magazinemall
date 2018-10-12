@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="demandDao">
+	
+	
+	<!-- 查询条件 -->
+	<sql id="sql_where">
+		<if test="type!=null and type!=''">
+			and o.type=#{type}
+		</if>
+		<if test="status!=null and status!=''">
+			and o.status=#{status}
+		</if>
+		<if test="name!=null and name!=''">
+			and o.name like "%"#{name}"%"
+		</if>
+		<if test="founder!=null and founder!=''">
+			and u.realname like "%"#{founder}"%"
+		</if>
+		<if test="teacher!=null and teacher!=''">
+			and (t.realname like "%"#{teacher}"%" or t.nickName like "%"#{teacher}"%")
+		</if>
+	</sql>
+	<!-- 点播课程列表 -->
+	<select id="selOndemandList" resultType="hashmap" parameterType="hashmap">
+		select DISTINCT o.ondemandId,IFNULL(o.sortNo,0) sortNo,o.number,o.name,case o.serialState when 0 then '非连载课程' when 1 then '更新中' when 2 then '已完结' end serialName,
+		IFNULL(t.realname,t.nickName) teacherName,o.studentNum,u.realname founder
+		,case o.status when 0 then '已关闭' when 1 then '已发布' when -1 then '未发布' when 2 then '未开始' when 3 then '直播中' when 4 then '已结束' end status,
+		date_format(o.creationTime,'%Y-%m-%d %T') creationTime,o.classtype,o.IsRecommend
+		from ondemand o
+		left join ondemand_teacher ot on ot.ondemandId=o.ondemandId and ot.display=1
+		left join userinfo t on t.userId=ot.teacherId
+		left join userinfo u on u.userId=o.founder
+		where 1=1 and o.classtype=#{classtype} and o.isSum=0
+		<include refid="sql_where"></include>
+		ORDER BY o.ondemandId desc
+		limit #{start},#{pageSize}
+	</select>
+	<!-- count -->
+	<select id="selOndemandCount" resultType="long" parameterType="hashmap">
+		select count(o.ondemandId) from ondemand o
+		left join ondemand_teacher ot on ot.ondemandId=o.ondemandId and ot.display=1
+		left join userinfo t on t.userId=ot.teacherId
+		left join userinfo u on u.userId=o.founder
+		where 1=1 and o.classtype=#{classtype} and o.isSum=0
+		<include refid="sql_where"></include>
+	</select>
+	<!-- 修改状态 -->
+	<update id="updateStatus" parameterType="hashmap"> 
+		update ondemand set status=#{status} where ondemandId=#{ondemandId}
+	</update>
+	<!-- 删除点播课程 -->
+	<delete id="deleteOndemand" parameterType="hashmap">
+		delete from ondemand where ondemandId=#{ondemandId}
+	</delete>
+	<!-- 添加点播课程信息 -->
+	<insert id="addBasic" parameterType="hashmap" useGeneratedKeys="true" keyProperty="ondemandId">
+		insert into ondemand 
+		(name,title,label,serialState,type,founder,creationTime
+		<if test="release == 0 and classtype != 1">,status</if>
+		<if test="classtype!=null and classtype!=''">,classtype</if>
+		<if test="classtype==1">,status</if>
+		<if test="imgUrls != null and imgUrls != ''">,imgUrls</if>
+		<if test="sortNo != null and sortNo != ''">,sortNo</if>
+		<if test="isStatistical != null and isStatistical != ''">,isStatistical</if>
+		) 
+		values 
+		(#{name},#{title},#{label},#{serialState},#{type},#{userId},now()
+		<if test="release == 0 and classtype != 1">,-1</if>
+		<if test="classtype!=null and classtype!=''">,#{classtype}</if>
+		<if test="classtype==1">,2</if>
+		<if test="imgUrls != null and imgUrls != ''">,#{imgUrls}</if>
+		<if test="sortNo != null and sortNo != ''">,#{sortNo}</if>
+		<if test="isStatistical != null and isStatistical != ''">,#{isStatistical}</if>
+		)
+	</insert>
+	<!-- 修改点播课程信息 -->
+	<update id="updateBasic" parameterType="hashmap">
+		update ondemand set ondemandId=#{ondemandId} 
+		<if test="introduce!=null and introduce!=''">
+			,introduce=#{introduce}
+		</if>
+		<if test="menu != null and menu != ''">
+			,menu=#{menu}
+		</if>
+		<if test="IntendedFor!=null and IntendedFor!=''">
+			,IntendedFor=#{IntendedFor}
+		</if>
+		<if test="picUrl!=null and picUrl!=''">
+			,picUrl=#{picUrl}
+		</if>
+		<if test="originalPrice != null and originalPrice != ''">
+			,originalPrice=#{originalPrice}
+		</if>
+		<if test="presentPrice != null and presentPrice != ''">
+			,presentPrice=#{presentPrice}
+		</if>
+		<if test="IsGratis != null and IsGratis != ''">
+			,IsGratis=#{IsGratis}
+		</if>
+		<if test="effective != null and effective != ''">
+			,effective=#{effective}
+		</if>
+		<if test="release == 0">
+			,status=-1
+		</if>
+		where ondemandId=#{ondemandId}
+	</update>
+	<!-- 查询课程基本信息 -->
+	<select id="findById" resultType="hashmap" parameterType="String">
+		select * from ondemand where ondemandId=#{_parameter}
+	</select>
+	<!-- 修改基本信息 -->
+	<update id="updateMsg" parameterType="hashmap">
+		update ondemand set name=#{name},title=#{title},label=#{label},serialState=#{serialState},type=#{type},founder=#{userId}
+		<if test="release == 0">
+			,status=-1
+		</if>
+		<if test="imgUrls != null and imgUrls != ''">,imgUrls = #{imgUrls}</if>
+		<if test="sortNo != null and sortNo != ''">,sortNo = #{sortNo}</if>
+		<if test="isStatistical != null and isStatistical != ''">,isStatistical = #{isStatistical}</if>
+		where ondemandId=#{ondemandId}
+	</update>
+	<!-- 添加章节 -->
+	<insert id="insertChapter" parameterType="hashmap">
+		insert into ondemand_chapter (title,ondemandId,orderIndex<if test="hourId!=null and hourId!=''">,hourId</if><if test="parentId!=null and parentId!=''">,parentId</if>) 
+		values(#{title},#{ondemandId},#{orderIndex}<if test="hourId!=null and hourId!=''">,#{hourId}</if><if test="parentId!=null and parentId!=''">,#{parentId}</if>)
+	</insert>
+	<!-- 保存课时信息 -->
+	<insert id="addClassHour" parameterType="hashmap"  useGeneratedKeys="true" keyProperty="hourId">
+		insert into classhour 
+		(type,title,videoUrl,fileName,pptfileName,minute,second,ondemandId,IsAudition,content,presentation,addTime
+		<if test="chapterId!=null and chapterId!=''">,chapterId</if>
+		,orderIndex
+		<if test="starttime != null and starttime != ''">
+			,starttime
+		</if>
+		<if test="endtime != null and endtime != ''">
+			,endtime
+		</if>
+		<if test="vcloudChannel!=null and vcloudChannel!=''">
+			,vcloudChannel
+		</if>
+		) 
+		values
+		(#{type},#{title},#{videoUrl},#{fileName},#{pptfileName},#{minute},#{second},#{ondemandId},#{IsAudition},#{abstracts},#{presentation},now()
+		<if test="chapterId!=null and chapterId!=''">,#{parentId}</if>
+		,#{orderIndex}
+		<if test="starttime != null and starttime != ''">
+			,#{starttime}
+		</if>
+		<if test="endtime != null and endtime != ''">
+			,#{endtime}
+		</if>
+		<if test="vcloudChannel!=null and vcloudChannel!=''">
+			,#{vcloudChannel}
+		</if>
+		)
+	</insert>
+	<!-- 查询章节信息 -->
+	<select id="selectChapter" resultType="hashmap" parameterType="String">
+		select * from ondemand_chapter where ondemandId=#{_parameter} ORDER BY orderIndex ASC
+	</select>
+	<!-- 查询最新章id -->
+	<select id="selLastChapter" resultType="hashmap" parameterType="hashmap">
+		select chapterId from ondemand_chapter 
+		where ondemandId=#{ondemandId} and parentId=0
+		order by chapterId desc
+		limit 1
+	</select>
+	<!-- 删除章节目录 -->
+	<delete id="delChapter" parameterType="hashmap">
+		delete from ondemand_chapter where chapterId=#{chapterId}
+	</delete>
+	<!-- 查询章节信息 -->
+	<select id="selChapterMsg" resultType="hashmap" parameterType="hashmap">
+		select * from ondemand_chapter where chapterId=#{_parameter}
+	</select>
+	<!-- 编辑章节信息 -->
+	<update id="editChapter" parameterType="hashmap">
+		update ondemand_chapter set title=#{title} where chapterId=#{chapterId}
+	</update>
+	<!-- 保存课程与教师中间表 -->
+	<insert id="addOndemandANDteacher" parameterType="hashmap">
+		insert into ondemand_teacher (ondemandId,teacherId,display) values (#{ondemandId},#{nteacherId},#{display})
+	</insert>
+	<!-- 更改课程与教师中间表 -->
+	<update id="upOndemandANDteacher" parameterType="hashmap">
+		update ondemand_teacher set teacherId=#{nteacherId},display=#{display} where id=#{id}
+	</update>
+	<!-- 查询所有的教师 -->
+	<select id="selTeacherAll" resultType="hashmap" parameterType="hashmap">
+		select * from userinfo where userType=2 and isDelete!=1 and isFreeze =1
+	</select>
+	<!-- 根据id查询指定教师 -->
+	<select id="teacherMsg" resultType="hashmap" parameterType="hashmap">
+		select * from userinfo where userId=#{teacherId}
+	</select>
+	<!-- 查询设定好的教师信息 -->
+	<select id="CheckTeacherMsg" resultType="hashmap" parameterType="String">
+		select * from userinfo t
+		left join ondemand_teacher ot on ot.teacherId=t.userId
+		where ot.ondemandId=#{_parameter}
+	</select>
+	<!-- 获取课时信息 -->
+	<select id="selectClass" resultType="hashmap" parameterType="String">
+		select * from classhour where ondemandId=#{_parameter} ORDER BY orderIndex ASC
+	</select>
+	<!-- 删除课时信息 -->
+	<delete id="delClassHour" parameterType="hashmap">
+		delete from classhour where hourId=#{hourId}
+	</delete>
+	<!-- 根据课时id查询课时信息 -->
+	<select id="findByKid" resultType="hashmap" parameterType="String">
+		select hourId,type,title,abstracts,videoUrl,minute,second,ondemandId,IsAudition,content,chapterId,orderIndex,
+		date_format(starttime,'%Y-%m-%d %T') starttime,date_format(endtime,'%Y-%m-%d %T') endtime,presentation,
+		hits,date_format(addTime,'%Y-%m-%d %T') addTime,vcloudChannel,fileName,pptfileName
+		from classhour where hourId=#{_parameter}
+	</select>
+	<!-- 修改课时 -->
+	<update id="updateClassHour" parameterType="hashmap">
+		update classhour set type=#{type},title=#{title},videoUrl=#{videoUrl},minute=#{minute},
+		second=#{second},IsAudition=#{IsAudition},content=#{abstracts},presentation=#{presentation},fileName=#{fileName},pptfileName=#{pptfileName}
+		<if test="starttime != null and starttime != ''">
+			,starttime=#{starttime}
+		</if>
+		<if test="endtime != null and endtime != ''">
+			,endtime=#{endtime}
+		</if>
+		where hourId=#{hourId}
+	</update>
+	<!-- 查询被拖拽节点的排序号 -->
+	<select id="selDragIndex" resultType="String" parameterType="String">
+		select orderIndex from ondemand_chapter where chapterId=#{_parameter}
+	</select>
+	<!-- 修改排序号 -->
+	<update id="updateIndex" parameterType="hashmap">
+		update ondemand_chapter set orderIndex=#{orderIndex} where chapterId=#{chapterId}
+	</update>
+	<!-- 查询课时排序号 -->
+	<select id="ChapterOrderIndex" resultType="String" parameterType="String">
+		select orderIndex from classhour where hourId=#{_parameter}
+	</select>
+	<!-- 修改排序号 -->
+	<update id="UpChapterOrder" parameterType="hashmap">
+		update classhour set orderIndex=#{orderIndex} where hourId=#{hourId}
+	</update>
+	<!-- 变更课时关联父ID -->
+	<update id="UpHourPId" parameterType="hashmap">
+		update classhour set chapterId=#{parentId} where hourId=#{dragId}
+	</update>
+	<!-- 变更目录关联父ID -->
+	<update id="UpChapterPId" parameterType="hashmap">
+		update ondemand_chapter set parentId=#{parentId} where chapterId=#{dragId}
+	</update>
+	<!-- 查询章节目录最大的排序号 -->
+	<select id="selectChapterOrder" resultType="int">
+		select orderIndex from ondemand_chapter
+		<!-- where ondemandId=#{_parameter} -->
+		order by orderIndex desc
+		limit 1
+	</select>
+	<!-- 查询课时最大的排序号 -->
+	<select id="selectHourOrder" resultType="int">
+		select orderIndex from classhour
+		<!-- where ondemandId=#{_parameter} -->
+		order by orderIndex desc
+		limit 1
+	</select>
+	<!-- 删除课程原本关联的教师 -->
+	<delete id="delTeacher" parameterType="hashmap">
+		delete from ondemand_teacher where ondemandId=#{ondemandId} <if test="teacherId != null and teacherId != ''">and teacherId=#{teacherId}</if>
+	</delete>
+	<!-- 修改点播课程是否推荐 -->
+	<update id="updateIsRecommend" parameterType="hashmap">
+		update ondemand set IsRecommend=#{IsRecommend} where ondemandId=#{ondemandId}
+	</update>
+	<!-- 查询课程名称 -->
+	<select id="selOndemanType" resultType="int" parameterType="hashmap">
+		select classtype from ondemand where ondemandId=#{ondemandId}
+	</select>
+	<!-- 添加ppt -->
+	<insert id="addPpt" parameterType="hashmap">
+		insert into classhour_picture 
+			(picurl,hourId,createTime) 
+		values
+		<foreach collection="pptUrls" item="item" separator=",">
+			(#{item},#{hourId},now())
+		</foreach> 
+	</insert>
+	<!-- 删除ppt -->
+	<delete id="delPpt" parameterType="hashmap">
+		delete from classhour_picture where hourId = #{hourId}
+	</delete>
+	
+	<select id="selectAllOndemandList" resultType="hashmap">
+		select ondemandId,name,type from ondemand
+	</select>
+	<select id="selectAllOndemandTypeList" resultType="hashmap">
+		select id,name from assortment where 
+		type=1
+		<if test="ondemandTyId != null">
+			and id = #{ondemandTyId}
+		</if>
+	</select>
+	
+</mapper>

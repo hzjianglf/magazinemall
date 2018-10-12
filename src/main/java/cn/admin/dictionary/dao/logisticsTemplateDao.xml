@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="logisticsTemplateDao">
+	
+	<!-- 查询模板数量 -->
+	<select id="selCount" parameterType="hashmap" resultType="long">
+		select count(0) from logisticstemplate lt where isDel=0 
+	</select>
+	<!-- 只查询分页模板 -->
+	<select id="selPageList" parameterType="hashmap" resultType="hashmap">
+		select Id from logisticstemplate where isDel=0
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 查询模板数据 -->
+	<select id="selTemplateList" parameterType="hashmap" resultType="hashmap">
+		select lt.templateName templateName,lti.*,
+		(select count(0) from logisticstemplateItem lti1 where lti1.templateId=lt.Id and lti1.isDel=0) columnNum
+		from logisticstemplate lt
+		LEFT JOIN logisticstemplateItem lti on lti.templateId=lt.Id
+		where lt.isDel=0 and lti.isDel=0 and lt.Id in 
+		<foreach collection="tempList" index="index" separator="," item="list" open="(" close=")">
+			#{list.Id}
+		</foreach>
+		ORDER BY lti.templateId ASC
+		<!-- limit #{start},#{pageSize} -->
+ 	</select>
+ 	<!-- 修改价格 -->
+ 	<update id="updPrice" parameterType="hashmap">
+ 		update logisticstemplateItem set 
+ 		<if test="priceType!=null and priceType!='' and priceType==1">
+ 			firstGoods=#{newValue}
+ 		</if>
+ 		<if test="priceType!=null and priceType!='' and priceType==2">
+ 			firstFreight=#{newValue}
+ 		</if>
+ 		<if test="priceType!=null and priceType!='' and priceType==3">
+ 			secondGoods=#{newValue}
+ 		</if>
+ 		<if test="priceType!=null and priceType!='' and priceType==4">
+ 			secondFreight=#{newValue}
+ 		</if>
+ 		where Id=#{msgId}
+ 	</update>
+ 	<!-- 删除运费信息 -->
+ 	<update id="delPriceInfo" parameterType="hashmap">
+ 		update logisticstemplateItem set isDel=1 where Id=#{Id}
+ 	</update>
+ 	<!-- 删除模板信息 -->
+ 	<update id="delTemplate" parameterType="hashmap">
+ 		update logisticstemplate set isDel=1 where Id=#{Id}
+ 	</update>
+ 	<!-- 删除模板后，才执行的删除模板价格信息的方法 -->
+ 	<update id="delPriceTemp" parameterType="hashmap">
+ 		update logisticstemplateItem set isDel=1 where templateId=#{Id}
+ 	</update>
+ 	<!-- 查询区域列表 -->
+ 	<select id="selRegionList" resultType="hashmap">
+ 		select * from provinces where parentid=0
+ 		ORDER BY codeid ASC
+ 	</select>
+ 	<!-- 查询省列表 -->
+ 	<select id="selProvinceList" resultType="hashmap">
+ 		select * from provinces where parentid!=0
+ 		ORDER BY codeid ASC
+ 	</select>
+ 	<!-- 查询该运费项的所有地址ID -->
+ 	<select id="selAllAddressIds" parameterType="hashmap" resultType="hashmap">
+ 		select regionId,provinceIds,cityIds,addressName from logisticstemplateItem where Id=#{msgId}
+ 	</select>
+ 	<!-- 修改运费的地址信息 -->
+ 	<update id="updAddressInfo" parameterType="hashmap">
+ 		update logisticstemplateItem set addressName=#{provinceName},regionId=#{regionIds},provinceIds=#{provinceIds},
+ 		cityIds=#{cityIds} where Id=#{msgId}
+ 	</update>
+ 	<!-- 添加模板的运费项 -->
+ 	<insert id="addPriceInfo" parameterType="hashmap">
+ 		insert into logisticstemplateItem (templateId,addressName,regionId,provinceIds,cityIds,addTime) values
+ 		(#{msgId},#{provinceName},#{regionIds},#{provinceIds},#{cityIds},now())
+ 	</insert>
+ 	<!-- 添加模板 -->
+ 	<insert id="saveTempplate" parameterType="hashmap" useGeneratedKeys="true" keyProperty="tempId">
+ 		insert into logisticstemplate (templateName,addTime) values (#{tempName},now())
+ 	</insert>
+ 	<!-- 添加模板项 -->
+ 	<insert id="savePriceInfo" parameterType="hashmap">
+ 		insert into logisticstemplateItem (templateId,firstGoods,firstFreight,secondGoods,secondFreight,addressName,regionId,provinceIds,cityIds,addTime) values
+ 		(#{templateId},#{firstGoods},#{firstFreight},#{secondGoods},#{secondFreight},#{addressName},#{regionId},#{provinceIds},#{cityIds},now())
+ 	</insert>
+ 	<!-- 添加全国其他城市的运费项 -->
+ 	<insert id="saveOrtherPrice" parameterType="hashmap">
+ 		insert into logisticstemplateItem (templateId,firstGoods,firstFreight,secondGoods,secondFreight,addressName,addTime) values
+ 		(#{tempId},#{ortherFirst},#{ortherFPrice},#{ortherSecond},#{ortherSPrice},'全国其他地区',now())
+ 	</insert>
+ 	
+</mapper> 

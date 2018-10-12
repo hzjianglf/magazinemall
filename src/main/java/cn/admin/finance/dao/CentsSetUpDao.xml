@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="sentsSetUpDao">
+
+	<!-- 分账设置总数  -->
+	<select id="selTotalCount" parameterType="hashmap" resultType="long">
+		select count(DISTINCT(ui.userId)) from userinfo ui 
+		LEFT JOIN centsSetUp c on ui.userId=c.userId
+		LEFT JOIN ondemand_teacher ot on ot.teacherId=ui.userId
+		LEFT JOIN ondemand o on o.ondemandId=ot.ondemandId
+		where ui.userType=2 and ui.isFreeze=1 and ui.isDelete=0
+		<if test="teacherName!=null and teacherName!='' ">
+			and (ui.userName like "%"#{teacherName}"%" or ui.realname like "%"#{teacherName}"%" or ui.nickName like "%"#{teacherName}"%")
+		</if>
+		<if test="className!=null and className!='' ">
+			and o.name like "%"#{className}"%" 
+		</if>
+		<if test="status!=null and status!='' ">
+			and c.status=#{status}
+		</if>
+		<if test="isNoType!=null and isNoType!='' and isNoType==0 ">
+			and IFNULL(c.Id,0)=0
+		</if>
+	</select>
+	<!-- 分账设置数据 -->
+	<select id="getcentsSetUpList" parameterType="hashmap" resultType="hashmap">
+		select ui.*,c.questionRate,c.rewardRate,c.status,c.noSetCount,c.setCount
+		from userinfo ui
+		LEFT JOIN centsSetUp c on ui.userId=c.userId
+		LEFT JOIN ondemand_teacher ot on ot.teacherId=ui.userId
+		LEFT JOIN ondemand o on o.ondemandId=ot.ondemandId
+		where ui.userType=2 and ui.isFreeze=1 and ui.isDelete=0
+		<if test="teacherName!=null and teacherName!='' ">
+			and (ui.userName like "%"#{teacherName}"%" or ui.realname like "%"#{teacherName}"%" or ui.nickName like "%"#{teacherName}"%")
+		</if>
+		<if test="className!=null and className!='' ">
+			and o.name like "%"#{className}"%" 
+		</if>
+		<if test="status!=null and status!='' ">
+			and c.status=#{status}
+		</if>
+		<if test="isNoType!=null and isNoType!='' and isNoType==0 ">
+			and IFNULL(c.Id,0)=0
+		</if>
+		group by ui.userId
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 查询用户信息 -->
+	<select id="getuserinfoById" parameterType="int" resultType="hashmap">
+		select ui.*,c.questionRate,c.rewardRate from userinfo ui 
+		LEFT JOIN centsSetUp c on ui.userId=c.userId
+		where ui.userType=2 and ui.isFreeze=1 and ui.isDelete=0 and ui.userId=#{userId}
+	</select>
+	<!-- 查询专家的所有课程 -->
+	<select id="selTeachersClass" parameterType="int" resultType="hashmap">
+		select o.ondemandId,o.ondemandId number,o.name,o.presentPrice,o.rate,CASE o.status WHEN 0 THEN '已关闭' WHEN 1 THEN '已发布' WHEN -1 THEN '未发布' WHEN 2 THEN '未开始' WHEN 3 THEN '直播中' WHEN 4 THEN '已结束' END status
+		from ondemand_teacher ot 
+		JOIN ondemand o on o.ondemandId=ot.ondemandId
+		where ot.teacherId=#{userId}
+	</select>
+	<!-- 查询该用户是否存在分账信息 -->
+	<select id="selInfoIsHave" parameterType="String" resultType="int">
+		select count(0) from centsSetUp where userId=#{userId} 
+	</select>
+	<!-- 保存分账设置信息 -->
+	<insert id="addSetUpInfo" parameterType="hashmap">
+		insert into centsSetUp (userId,noSetCount,setCount,questionRate,rewardRate) values (#{userId},#{noSetCount},#{setCount},#{questionRate},#{rewardRate})
+	</insert>
+	<!-- 修改分账设置信息 -->
+	<update id="updSetUpInfo" parameterType="hashmap">
+		update centsSetUp set noSetCount=#{noSetCount},setCount=#{setCount},questionRate=#{questionRate},rewardRate=#{rewardRate} where userId=#{userId}
+	</update>
+	<!-- 修改课程分成 -->
+	<update id="updClassRate" parameterType="hashmap">
+		update ondemand set rate=#{classRate} where ondemandId=#{classId}
+	</update>
+	<!-- 修改分成设置的状态 -->
+	<update id="setUpStatus" parameterType="hashmap">
+		update centsSetUp set status=#{statusType} where FIND_IN_SET(userId,#{userId})
+	</update> 
+</mapper>

@@ -1,0 +1,1259 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="statisticsDao">
+	
+	<sql id="orderWhere">
+		<if test="startTime!=null and startTime!='' ">
+			and date_format(a.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+		</if>
+		<if test="endTime!=null and endTime!='' ">
+			and date_format(a.addtime, '%Y-%m-%d') &lt;= #{endTime}
+		</if>
+		
+	</sql>
+	<!-- 汇总列表-筛选课程类型 -->
+	<select id="selectCourseTypeStatistic" parameterType="hashmap" resultType="hashmap">
+	
+				SELECT
+					SUM((a.buyprice*a.count)) totalprice,
+					SUM(IFNULL(b.couponprice, 0))  + 
+					SUM(IFNULL(b.voucherprice, 0)) couponPrice,
+					SUM((a.buyprice*a.count))-SUM(IFNULL(b.couponprice, 0)) -SUM(IFNULL(b.voucherprice, 0))
+					actualPayPrice,
+					d.type ondemandType,
+					<!-- u.nickName, -->
+					case when d.classtype=1 then '直播课程' else '点播课程' end,
+					ant.name name
+				FROM
+					orderitem a
+				LEFT JOIN `order` b ON a.orderId = b.id
+				LEFT JOIN ondemand d ON a.ondemandId = d.ondemandId
+				<!-- LEFT JOIN ondemand_teacher ot on d.ondemandId = ot.ondemandId
+				LEFT JOIN userinfo u on u.userId = ot.teacherId -->
+				join assortment ant on ant.id = d.type
+				WHERE
+					a.subType != 5
+				AND b.isDel = 0	
+				AND (a.producttype = 4 or a.producttype=8)
+				AND b.paystatus = 1
+				AND d.isStatistical=0 AND d.type=#{courseState}
+				<if test="startTime!=null and startTime!='' and endTime!=null and endTime!='' ">
+					and date_format(b.addtime, '%Y-%m-%d') between #{startTime} and #{endTime}
+				</if>
+				<!-- GROUP BY ot.teacherId -->
+		
+	</select>
+	<!-- 汇总列表-筛选课程列表-->
+	<select id="selectCourseItemsStatistic" parameterType="hashmap" resultType="hashmap">
+		SELECT
+			u.nickName,
+			IFNULL(sum(ot.buyprice * ot.count),0) totalprice,
+			IFNULL(sum(a.couponprice) ,0)+IFNULL(sum(a.voucherprice), 0) couponPrice,
+			IFNULL(sum(ot.buyprice * ot.count),0)-(IFNULL(sum(a.couponprice) ,0)+IFNULL(sum(a.voucherprice), 0)) actualPayPrice,
+			<!-- (
+				SELECT
+					IFNULL(SUM(ot.buyprice * ot.count),0) itemMoney
+				FROM
+					orderitem ot
+				LEFT JOIN `order` od ON ot.orderId = od.id
+				LEFT JOIN ondemand om ON om.ondemandId = ot.ondemandId
+				WHERE
+					ot.subType != 5
+				AND ot.ondemandId =#{ondemandId} 
+				AND ot.producttype=4
+				AND od.paystatus = 1
+				AND od.isDel = 0
+				AND om.isStatistical=0
+				<if test="startTime!=null and startTime!='' ">
+					and date_format(od.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+				</if>
+				<if test="endTime!=null and endTime!='' ">
+					and date_format(od.addtime, '%Y-%m-%d') &lt;= #{endTime}
+				</if>
+			) itemMoney, -->
+			(SELECT om.type ondemandType from ondemand om where om.ondemandId=ot.ondemandId) ondemandType
+		FROM
+			`order` a
+		LEFT JOIN orderitem ot ON a.id = ot.orderId
+	
+		LEFT JOIN ondemand_teacher ott on ot.ondemandId = ott.ondemandId
+		LEFT JOIN userinfo u on u.userId = ott.teacherId
+		where (ot.producttype=4 or ot.producttype=8)  and a.isDel=0 and a.paystatus=1 AND ot.ondemandId =#{ondemandId}  <include refid="orderWhere"></include>
+	</select>
+	<!-- 订单列表-筛选期刊数量 -->
+	<select id="selectProductAndElectronicCount" parameterType="hashmap" resultType="long">
+		SELECT
+			count(alis.orderId)
+		FROM
+			(
+				SELECT
+					a.id orderId,
+					a.ordertype,
+					a.orderno,
+					IFNULL(a.totalprice, 0) totalprice,
+					IFNULL(a.couponprice, 0) + IFNULL(a.voucherprice, 0) jianprice,
+					IFNULL(a.totalprice, 0) - (
+						IFNULL(a.couponprice, 0) + IFNULL(a.voucherprice, 0)
+					) actualPrice,
+					IFNULL(d.telenumber, a.openName) userTel,
+					IFNULL(a.openId, 0) openId,
+					a.paytype
+				FROM
+					`order` a
+				LEFT JOIN userinfo d ON a.userId = d.userId
+				LEFT JOIN orderitem ot ON ot.orderId = a.id
+				WHERE
+					a.isDel = 0
+				AND (
+					ot.producttype = 2
+					OR ot.producttype = 16
+				)
+				AND a.paystatus = 1
+				AND ot.subType != 5
+				and a.totalprice!=0
+				AND ot.productid = #{productid}  <include refid="orderWhere"></include>
+			) alis
+		<where>
+		   <if test="bookAndElectronicType !=null and not bookAndElectronicType.isEmpty ">
+		   		and alis.ordertype in 
+			   <foreach collection="bookAndElectronicType" index="index" item="bookAndElectronic" open="(" separator="," close=")">
+			    	#{bookAndElectronic}
+			   </foreach>
+		   </if>
+		</where> 
+	</select>
+	<select id="getBookByYear" parameterType="string" resultType="hashmap">
+		select * from book where year = #{year} 
+	</select>
+	<select id="getYears" resultType="string">
+		select DISTINCT(`year`) from book ORDER BY  `year` DESC
+	</select>
+	<!-- 订单列表-筛选课程列表数量 -->
+	<select id="selectCourseStatisByOrderCount" parameterType="hashmap" resultType="long">
+				SELECT
+					count(a.id)
+				FROM
+					`order` a
+				LEFT JOIN userinfo d ON a.userId = d.userId
+				LEFT JOIN orderitem ot ON ot.orderId = a.id
+				LEFT JOIN ondemand od ON ot.ondemandId = od.ondemandId
+				WHERE
+					a.isDel = 0
+				AND	(ot.producttype = 4 or ot.producttype=8)
+				AND a.paystatus = 1
+				AND ot.subType != 5
+				AND od.isStatistical = 0
+				and a.totalprice!=0
+				AND ot.ondemandId = #{ondemandId}  <include refid="orderWhere"></include>
+	</select>
+	<!-- 订单列表-筛选课程列表 -->
+	<select id="selectCourseStatisByOrder" parameterType="hashmap" resultType="hashmap">
+				SELECT
+					a.id orderId,
+					a.orderno,
+					ot.productname productName,
+					IFNULL(ot.buyprice, 0) orderprice,
+					IFNULL(ot.buyprice*ot.count, 0) totalprice,
+					IFNULL(a.couponprice, 0) + IFNULL(a.voucherprice, 0) jianprice,
+					IFNULL(ot.buyprice*ot.count, 0) - (
+						IFNULL(a.couponprice, 0) + IFNULL(a.voucherprice, 0)
+					) actualPrice,
+					IFNULL(d.telenumber, a.openName) userTel,
+					IFNULL(a.openId, 0) openId,
+					od.type ondemandType,
+					a.paytype,
+					ot.count productCount,
+					am.`name` name,
+					date_format(a.addtime, '%Y-%m-%d %T') time
+						ifnull(a.receiverAddress,'') receiverAddress,
+			ifnull(a.receivername,'') receivername,ifnull(a.receiverphone,'')receiverphone,
+			ifnull(a.receiverCity,'') receiverCity,
+			ifnull(a.receiverCounty,'' ) receiverCounty,ifnull(a.receiverProvince,'') receiverProvince
+				FROM
+					`order` a
+				LEFT JOIN userinfo d ON a.userId = d.userId
+				LEFT JOIN orderitem ot ON ot.orderId = a.id
+				LEFT JOIN ondemand od ON ot.ondemandId = od.ondemandId
+				LEFT JOIN assortment am on od.type=am.id
+				WHERE
+					a.isDel = 0
+				AND	(ot.producttype = 4 or ot.producttype=8)
+				AND a.paystatus = 1
+				AND ot.subType != 5
+				AND od.isStatistical = 0
+				and a.totalprice!=0
+				AND ot.ondemandId = #{ondemandId}  <include refid="orderWhere"></include>
+				order by a.id desc
+				limit #{start},#{pageSize}
+	</select>
+	
+	<!-- 订单列表-筛选期刊列表 -->
+	<select id="selectProductAndElectronicAboutOrder" parameterType="hashmap" resultType="hashmap">
+		SELECT
+			*
+		FROM
+			(
+				SELECT
+					a.id orderId,
+					ot.producttype ordertype,
+					a.orderno,
+					ot.productName,
+					IFNULL(ot.buyprice, 0) orderprice,
+					IFNULL(ot.buyprice*ot.count, 0) totalprice,
+					IFNULL(a.couponprice, 0) + IFNULL(a.voucherprice, 0) jianprice,
+					IFNULL(ot.buyprice*ot.count, 0) - (
+						IFNULL(a.couponprice, 0) + IFNULL(a.voucherprice, 0)
+					) actualPrice,
+					IFNULL(d.telenumber, a.openName) userTel,
+					IFNULL(a.openId, 0) openId,
+					a.paytype,
+					date_format(a.addtime, '%Y-%m-%d %T') time,
+					ot.count productCount,
+					ifnull(a.receiverAddress,'') receiverAddress,
+			ifnull(a.receivername,'') receivername,ifnull(a.receiverphone,'')receiverphone,
+			ifnull(a.receiverCity,'') receiverCity,
+			ifnull(a.receiverCounty,'' ) receiverCounty,ifnull(a.receiverProvince,'') receiverProvince 
+				FROM
+					`order` a
+				LEFT JOIN userinfo d ON a.userId = d.userId
+				LEFT JOIN orderitem ot ON ot.orderId = a.id
+				WHERE
+					a.isDel = 0
+				AND (
+					ot.producttype = 2
+					OR ot.producttype = 16
+				)
+				AND a.paystatus = 1
+				AND ot.subType != 5
+				and a.totalprice!=0
+				AND ot.productid = #{productid}  <include refid="orderWhere"></include>
+			) alis
+		<where>
+		   <if test="bookAndElectronicType !=null and not bookAndElectronicType.isEmpty ">
+		   		and alis.ordertype in 
+			   <foreach collection="bookAndElectronicType" index="index" item="bookAndElectronic" open="(" separator="," close=")">
+			    	#{bookAndElectronic}
+			   </foreach>
+		   </if>
+		</where> 
+		order by alis.orderId desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	
+	<!-- 期刊列表-筛选 -->
+	<select id="selectBookAndElectronic" parameterType="hashmap" resultType="hashmap">
+		select * from 
+	   <!-- 期刊 -->
+		((SELECT
+			IFNULL(sum(ot.buyprice* ot.count),0) totalprice,
+			IFNULL(sum(a.couponprice) ,0)+IFNULL(sum(a.voucherprice), 0) couponPrice,
+			IFNULL(sum(ot.buyprice* ot.count),0)-(IFNULL(sum(a.couponprice) ,0)+IFNULL(sum(a.voucherprice), 0)) actualPayPrice,
+			(
+				SELECT
+					IFNULL(SUM(ot.buyprice * ot.count),0) itemMoney
+				FROM
+					orderitem ot
+				LEFT JOIN `order` od ON ot.orderId = od.id
+				WHERE
+					ot.subType != 5
+				AND ot.productid =#{productid} 
+				AND ot.producttype=2
+				AND od.paystatus = 1
+				and od.totalprice!=0
+				AND od.isDel = 0
+				<if test="startTime!=null and startTime!='' ">
+					and date_format(od.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+				</if>
+				<if test="endTime!=null and endTime!='' ">
+					and date_format(od.addtime, '%Y-%m-%d') &lt;= #{endTime}
+				</if>
+			) itemMoney,
+		    1 as ordertype,
+		    1 as bookAndElectronicType
+		FROM
+			`order` a
+		LEFT JOIN orderitem ot ON a.id = ot.orderId
+		where ot.producttype=2  and a.isDel=0 and a.paystatus=1 AND ot.productid = #{productid} <include refid="orderWhere"></include>)
+		UNION all
+		<!-- 电子书 -->
+		(SELECT
+			IFNULL(sum(ot.buyprice * ot.count),0) totalprice,
+			IFNULL(sum(a.couponprice) ,0)+IFNULL(sum(a.voucherprice), 0) couponPrice,
+			IFNULL(sum(ot.buyprice * ot.count),0)-(IFNULL(sum(a.couponprice) ,0)+IFNULL(sum(a.voucherprice), 0)) actualPayPrice,
+			(
+				SELECT
+					IFNULL(SUM(ot.buyprice * ot.count),0) itemMoney
+				FROM
+					orderitem ot
+				LEFT JOIN `order` od ON ot.orderId = od.id
+				WHERE
+					ot.subType != 5
+				AND ot.productid =#{productid} 
+				AND ot.producttype=16
+				AND od.paystatus = 1
+				AND od.isDel = 0
+				<if test="startTime!=null and startTime!='' ">
+					and date_format(od.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+				</if>
+				<if test="endTime!=null and endTime!='' ">
+					and date_format(od.addtime, '%Y-%m-%d') &lt;= #{endTime}
+				</if>
+			) itemMoney,
+		    6 as ordertype,
+		    2 as bookAndElectronicType
+		FROM
+			`order` a
+		LEFT JOIN orderitem ot ON a.id = ot.orderId
+		where ot.producttype=16  and a.isDel=0 and a.paystatus=1 AND ot.productid = #{productid} <include refid="orderWhere"></include>)) a
+		<where>
+		   <if test="bookAndElectronicType !=null and not bookAndElectronicType.isEmpty ">
+		   		and bookAndElectronicType in 
+			   <foreach collection="bookAndElectronicType" index="index" item="bookAndElectronic" open="(" separator="," close=")">
+			    	#{bookAndElectronic}
+			   </foreach>
+		   </if>
+		</where> 
+		
+	</select>
+	
+	
+	
+	<!-- 汇总列表 -->
+	<select id="selectStatistics" parameterType="hashmap" resultType="hashmap">
+	   select * from 
+	   <!-- 期刊 -->
+		((SELECT
+			IFNULL(sum(ot.buyprice * ot.count),0) totalprice,
+			IFNULL(sum(a.couponprice) ,0)+IFNULL(sum(a.voucherprice), 0) couponPrice,
+			IFNULL(sum(ot.buyprice * ot.count),0)-(IFNULL(sum(a.couponprice) ,0)+IFNULL(sum(a.voucherprice), 0)) actualPayPrice,
+		    1 as ordertype
+		FROM
+			`order` a
+		LEFT JOIN orderitem ot ON a.id = ot.orderId
+		where ot.producttype=2  and a.isDel=0 and a.paystatus=1<include refid="orderWhere"></include>)
+		UNION all
+		<!-- 电子书 -->
+		(SELECT
+			IFNULL(sum(ot.buyprice * ot.count),0) totalprice,
+			IFNULL(sum(a.couponprice) ,0)+IFNULL(sum(a.voucherprice), 0) couponPrice,
+			IFNULL(sum(ot.buyprice * ot.count),0)-(IFNULL(sum(a.couponprice) ,0)+IFNULL(sum(a.voucherprice), 0)) actualPayPrice,
+		    6 as ordertype
+		FROM
+			`order` a
+		LEFT JOIN orderitem ot ON a.id = ot.orderId
+		where ot.producttype=16  and a.isDel=0 and a.paystatus=1<include refid="orderWhere"></include>)
+		<!-- UNION all
+		课程
+		(SELECT
+			IFNULL(sum(b.totalprice), 0) totalprice,
+			IFNULL(sum(c.jianprice), 0) + IFNULL(sum(b.voucherprice), 0) couponPrice,
+			IFNULL(sum(b.totalprice), 0) - (
+				IFNULL(sum(c.jianprice), 0) + IFNULL(sum(b.voucherprice), 0)
+			) actualPayPrice,
+			2 AS ordertype
+		FROM
+			orderitem a
+		LEFT JOIN `order` b ON a.orderId = b.id
+		LEFT JOIN coupon c ON b.couponId = c.Id
+		LEFT JOIN ondemand d ON a.productid = d.ondemandId
+		WHERE
+			a.subType != 5
+		AND b.isDel = 0	
+		AND a.producttype = 4
+		AND b.paystatus = 1
+		AND d.isStatistical = 0
+		<if test="startTime!=null and startTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+		</if>
+		<if test="endTime!=null and endTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &lt;= #{endTime}
+		</if>
+		) -->
+		UNION all
+		<!-- 问答 -->
+		(select IFNULL(sum(price),0) totalprice,0 couponPrice,IFNULL(sum(price),0) actualPayPrice,3 as ordertype from paylog where status=1 and (source=3 or source=4)
+		 <if test="startTime!=null and endTime!='' ">
+			and date_format(payTime, '%Y-%m-%d') between #{startTime} and #{endTime}
+		</if>
+		 )
+		UNION all
+		<!-- 打赏 -->
+		(select IFNULL(sum(price),0) totalprice,0 couponPrice, IFNULL(sum(price),0) actualPayPrice,4 as ordertype from paylog where status=1 and source=5
+		 <if test="startTime!=null and endTime!='' ">
+			and date_format(payTime, '%Y-%m-%d') between #{startTime} and #{endTime}
+		</if> 
+		))a
+		<where>
+		   <if test="ordetTypeList !=null and not ordetTypeList.isEmpty ">
+		   		and ordertype in 
+			   <foreach collection="ordetTypeList" index="index" item="orderType" open="(" separator="," close=")">
+			    	#{orderType}
+			   </foreach>
+		   </if>
+		</where> 
+	</select>
+	<select id="selectAboutOrderCount" parameterType="hashmap" resultType="long">
+		SELECT
+			count(ot.id)
+		FROM
+			`order` a
+		LEFT JOIN userinfo d on a.userId = d.userId
+		 JOIN orderItem ot ON a.id = ot.orderId
+		WHERE
+			a.isDel = 0 and ot.subType != 5
+			and a.totalprice!=0
+		AND a.paystatus = 1<include refid="orderWhere"></include>
+		<if test="orderTypeList !=null and not orderTypeList.isEmpty ">
+		       and ot.produttype in
+		       <foreach collection="orderTypeList" index="index" item="orderType" open="(" separator="," close=")">
+		    	#{orderType}
+		    </foreach>
+		</if>
+		<if test="questionAnswer !=null and not questionAnswer.isEmpty">
+		       and b.source in
+		       <foreach collection="questionAnswer" index="index" item="question" open="(" separator="," close=")">
+		    	#{question}
+		    </foreach>
+		</if>
+		<if test="payMehod !=null and not payMehod.isEmpty">
+		       and b.payMethodName in
+		       <foreach collection="payMehod" index="index" item="pay" open="(" separator="," close=")">
+		    	#{pay}
+		    </foreach>
+		</if>
+	</select>
+	<select id="selProductName" parameterType="hashmap" resultType="hashmap">
+		SELECT
+			group_concat(DISTINCT(oi.productname)) productName,
+			sum(oi.count) productCount
+		FROM
+			orderitem oi
+		WHERE
+			oi.orderId = #{orderId}
+	</select>
+	<!-- 订单列表-筛选课程类别 -->
+	<select id="selectCourseStatisAboutOrder" parameterType="hashmap" resultType="hashmap">
+		SELECT
+			b.id orderId,
+			b.orderno,
+			IFNULL(a.buyprice*a.count, 0) totalprice,
+			IFNULL(b.couponprice, 0) + IFNULL(b.voucherprice, 0) jianprice,
+			IFNULL(a.buyprice*a.count, 0) - (
+				IFNULL(b.couponprice, 0) + IFNULL(b.voucherprice, 0)
+			) actualPrice,
+			a.productname productName,
+			IFNULL(us.telenumber, 0) userTel,
+			d.type ondemandType,
+			IFNULL(b.openId, 0) openId,
+			b.paytype,
+			a.count productCount,
+			date_format(b.addtime, '%Y-%m-%d %T') time,
+			am.`name` name,
+			ifnull(a.receiverAddress,'') receiverAddress,
+			ifnull(a.receivername,'') receivername,ifnull(a.receiverphone,'')receiverphone,
+			ifnull(a.receiverCity,'') receiverCity,
+			ifnull(a.receiverCounty,'' ) receiverCounty,ifnull(a.receiverProvince,'') receiverProvince
+			
+		FROM
+			orderitem a
+		LEFT JOIN `order` b ON a.orderId = b.id
+		LEFT JOIN ondemand d ON a.ondemandId = d.ondemandId
+		LEFT JOIN userinfo us ON b.userId = us.userId
+		LEFT JOIN assortment am on d.type=am.id
+		WHERE
+			a.subType != 5
+		AND b.isDel = 0
+		AND (a.producttype = 4 or a.producttype=8)
+		AND b.paystatus = 1
+		AND d.isStatistical = 0
+		AND d.type=#{courseState}
+		and b.totalprice!=0
+		<if test="startTime!=null and startTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+		</if>
+		<if test="endTime!=null and endTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &lt;= #{endTime}
+		</if>
+		order by b.id desc
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 订单列表-筛选课程列表-数量 -->
+	<select id="selectCourseStatisAboutOrderCount" parameterType="hashmap" resultType="long">
+		SELECT
+			count(a.id)
+		FROM
+			orderitem a
+		LEFT JOIN `order` b ON a.orderId = b.id
+		LEFT JOIN ondemand d ON a.productid = d.ondemandId
+		LEFT JOIN userinfo us ON b.userId = us.userId
+		WHERE
+			a.subType != 5
+		AND b.isDel = 0	
+		AND (a.producttype = 4 or a.producttype=8)
+		AND b.paystatus = 1
+		AND d.isStatistical = 0
+		AND d.type=#{courseState}
+		and b.totalprice!=0
+		<if test="startTime!=null and startTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+		</if>
+		<if test="endTime!=null and endTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &lt;= #{endTime}
+		</if>
+	</select>
+	<select id="selIsSubName" parameterType="hashmap" resultType="hashmap">
+		select oi.productname isSubName from orderitem oi where oi.orderId=#{orderId} and subType=5
+	</select>
+	
+	
+	
+	<!-- 订单列表 -->
+	<select id="selectAboutOrder" parameterType="hashmap" resultType="hashmap">
+		SELECT
+		    a.id orderId,
+			a.ordertype,
+			a.orderno,
+			IFNULL(ot.buyprice,0) orderprice,
+			IFNULL(ot.buyprice*ot.count,0) totalprice,
+			IFNULL(a.couponprice,0)+IFNULL(a.voucherprice,0) jianprice,
+			ot.productName,
+			ot.count productCount,
+			IFNULL(ot.buyprice*ot.count,0)-(IFNULL(a.couponprice,0)+IFNULL(a.voucherprice,0)) actualPrice,
+			IFNULL(d.telenumber, a.openName) userTel,
+			IFNULL(a.openId,0) openId,
+			date_format(a.addtime, '%Y-%m-%d %T') time,
+			a.paytype,
+			ifnull(a.receiverAddress,'') receiverAddress,
+			ifnull(a.receivername,'') receivername,ifnull(a.receiverphone,'')receiverphone,
+			ifnull(a.receiverCity,'') receiverCity,
+			ifnull(a.receiverCounty,'' ) receiverCounty,ifnull(a.receiverProvince,'') receiverProvince
+			<!-- (SELECT sum(ot.count)  from orderitem ot where ot.orderId=a.id) productCount  -->
+		FROM
+			`order` a
+		LEFT JOIN userinfo d on a.userId = d.userId
+		 JOIN orderItem ot on a.id = ot.orderId
+		WHERE
+			a.isDel = 0 and ot.subType != 5
+		AND a.paystatus = 1 <include refid="orderWhere"></include>
+		and a.totalprice!=0 
+		<if test="orderTypeList !=null and not orderTypeList.isEmpty ">
+		       (and ot.producttype in
+		       <foreach collection="orderTypeList" index="index" item="orderType" open="(" separator="," close=")">
+		    	#{orderType}
+		    	</foreach>
+		    	or ot.producttype=8)
+		</if>
+		<if test="questionAnswer !=null and not questionAnswer.isEmpty ">
+		       and b.source in
+		       <foreach collection="questionAnswer" index="index" item="question" open="(" separator="," close=")">
+		    	#{question}
+		    </foreach>
+		</if>
+		<if test="payMehod !=null and not payMehod.isEmpty ">
+		       and b.payMethodName in
+		       <foreach collection="payMehod" index="index" item="pay" open="(" separator="," close=")">
+		    	#{pay}
+		    </foreach>
+		</if>
+		 order by a.id desc 
+	 	<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 导出订单 -->
+	<select id="selectExportOrder" parameterType="hashmap" resultType="hashmap">
+		SELECT
+			a.ordertype,
+			a.orderno,
+			a.totalprice,
+			c.jianprice ,
+			b.payMethodName,
+			DATE_FORMAT(b.payTime,'%Y-%m-%d %T') payTime,
+			b.price actualPrice,
+			b.source,
+			(select group_concat(DISTINCT(oi.productname)) from orderitem oi where oi.orderId=a.id) productName,a.id,
+			d.telenumber userTel
+		FROM
+			`order` a
+		LEFT JOIN paylog b ON a.orderNo = b.orderno
+		LEFT JOIN coupon c ON a.couponId = c.id
+		LEFT JOIN userinfo d on a.userId = d.userId
+		WHERE
+			a.isDel = 0
+		AND b. STATUS = 1 <include refid="orderWhere"></include>
+		<!-- 会报:java.lang.String;.isEmpty -->
+		<!-- <if test="orderTypeList !=null and  not orderTypeList.isEmpty ">
+		    and a.ordertype in
+		   <foreach collection="orderTypeList" item="orderType" separator="," open="(" close=")">
+		       #{orderType}
+		   </foreach>
+		</if> -->
+		<if test="orderTypeList !=null and orderTypeList !='' ">
+		       and a.ordertype in
+		       <foreach collection="orderTypeList" index="index" item="item" open="(" separator="," close=")">
+		    	#{item}
+		    </foreach>
+		</if>
+		<if test="questionAnswer !=null and questionAnswer !='' ">
+		       and b.source in
+		       <foreach collection="questionAnswer" index="index" item="question" open="(" separator="," close=")">
+		    	#{question}
+		    </foreach>
+		</if>
+		<if test="payMehod !=null and payMehod !='' ">
+		       and b.payMethodName in
+		       <foreach collection="payMehod" index="index" item="payMehod" open="(" separator="," close=")">
+		    	#{payMehod}
+		    </foreach>
+		</if>
+		
+		<if test="orderId !=null and orderId !='' ">
+		       and a.id in
+		       <foreach collection="orderId" index="index" item="item" open="(" separator="," close=")">
+		    	#{item}
+		    </foreach>
+		</if>
+		order by b.payTime desc
+	</select>
+	<!-- 导出商品 -->
+	<select id="selectExportProuduct" parameterType="hashmap" resultType="hashmap">
+		SELECT
+			b.ordertype,
+		  c.source,
+		   a.orderno,
+		b.userId,
+		d.telenumber userTel,
+		a.productname,
+		a.producttype,
+		b.totalprice,
+		a.count,
+		a.subType,
+		a.deliverstatus
+		
+		FROM
+			orderitem a
+		LEFT JOIN `order` b ON a.orderno = b.orderno 
+		LEFT JOIN paylog c ON a.orderNo = c.orderno 
+		LEFT JOIN userinfo d on b.userId = d.userId
+		
+		<where>
+		   c. STATUS = 1 and b.isDel =0
+		   <if test="startTime!=null and startTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+		</if>
+		<if test="endTime!=null and endTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &lt;= #{endTime}
+		</if>
+		<if test="orderTypeList !=null and orderTypeList !='' ">
+		       and b.ordertype in
+		       <foreach collection="orderTypeList" index="index" item="orderType" open="(" separator="," close=")">
+		    	#{orderType}
+		    </foreach>
+		</if>
+		<if test="questionAnswer !=null and questionAnswer !='' ">
+		       and c.source in
+		       <foreach collection="questionAnswer" index="index" item="question" open="(" separator="," close=")">
+		    	#{question}
+		    </foreach>
+		</if>
+		<if test="payMehod !=null and payMehod !='' ">
+		       and c.payMethodName in
+		       <foreach collection="payMehod" index="index" item="pay" open="(" separator="," close=")">
+		    	#{pay}
+		    </foreach>
+		</if>
+		<if test="productId !=null and productId !='' ">
+		       and a.id in
+		       <foreach collection="productId" index="index" item="item" open="(" separator="," close=")">
+		    	#{item}
+		    </foreach>
+		</if>
+		</where> 
+		order by b.addtime desc
+	</select>	
+	<!-- 商品列表-筛选期刊列表数量-->
+	<select id="selectProductAndElectronicCountAboutProduct" parameterType="hashmap" resultType="long">
+		SELECT
+			count(alis.productId)
+		FROM
+			(
+				SELECT
+					a.id productId,
+					b.ordertype,
+					c.source,
+					a.orderno,
+					b.userId,
+					IFNULL(d.telenumber, 0) userTel,
+					a.productname,
+					a.producttype,
+					IFNULL(a.buyprice * a.count, 0) totalprice,
+					a.count,
+					a.subType,
+					a.deliverstatus,
+					IFNULL(b.openId, 0) openId
+				FROM
+					orderitem a
+				LEFT JOIN `order` b ON a.orderno = b.orderno
+				LEFT JOIN paylog c ON a.orderNo = c.orderno
+				LEFT JOIN userinfo d ON b.userId = d.userId
+				WHERE
+					b.paystatus = 1
+				AND b.isDel = 0
+				AND (
+					a.producttype = 2
+					OR a.producttype = 16
+				)
+				AND a.productid = #{productid}
+				<if test="startTime!=null and startTime!='' ">
+					and date_format(b.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+				</if>
+				<if test="endTime!=null and endTime!='' ">
+					and date_format(b.addtime, '%Y-%m-%d') &lt;= #{endTime}
+				</if>
+			) alis
+		<where>
+		   <if test="bookAndElectronicType !=null and not bookAndElectronicType.isEmpty ">
+		   		and alis.ordertype in 
+			   <foreach collection="bookAndElectronicType" index="index" item="bookAndElectronic" open="(" separator="," close=")">
+			    	#{bookAndElectronic}
+			   </foreach>
+		   </if>
+		</where> 
+	</select>
+	
+	<!-- 商品列表-筛选课程列表数量-->
+	<select id="selectCourseStatisByProductCount" parameterType="hashmap" resultType="long">
+		SELECT
+			count(a.id)
+		FROM
+			orderitem a
+		LEFT JOIN `order` b ON a.orderno = b.orderno
+		LEFT JOIN paylog c ON a.orderNo = c.orderno
+		LEFT JOIN userinfo d ON b.userId = d.userId
+		LEFT JOIN ondemand od ON a.ondemandId = od.ondemandId
+		WHERE
+			b.paystatus = 1
+		AND b.isDel = 0
+		AND a.producttype = 4
+		AND od.isStatistical = 0
+		AND od.ondemandId = #{ondemandId}
+		<if test="startTime!=null and startTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+		</if>
+		<if test="endTime!=null and endTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &lt;= #{endTime}
+		</if>
+	</select>
+	
+	<!-- 商品列表-筛选课程列表-->
+	<select id="selectCourseStatisByProduct" parameterType="hashmap" resultType="hashmap">
+		SELECT
+			a.id productId,
+			b.ordertype,
+			c.source,
+			a.orderno,
+			b.userId,
+			IFNULL(d.telenumber, 0) userTel,
+			a.productname,
+			a.producttype,
+			IFNULL(a.buyprice * a.count, 0) totalprice,
+			a.count,
+			a.subType,
+			a.deliverstatus,
+			IFNULL(b.openId, 0) openId
+		FROM
+			orderitem a
+		LEFT JOIN `order` b ON a.orderno = b.orderno
+		LEFT JOIN paylog c ON a.orderNo = c.orderno
+		LEFT JOIN userinfo d ON b.userId = d.userId
+		LEFT JOIN ondemand od ON a.ondemandId = od.ondemandId
+		WHERE
+			b.paystatus = 1
+		AND b.isDel = 0
+		AND a.producttype = 4
+		AND od.isStatistical = 0
+		AND od.ondemandId = #{ondemandId}
+		<if test="startTime!=null and startTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+		</if>
+		<if test="endTime!=null and endTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &lt;= #{endTime}
+		</if>
+		limit #{start},#{pageSize}
+	</select>
+	<!-- 商品列表-筛选期刊列表-->
+	<select id="selectProductAndElectronicAboutProduct" parameterType="hashmap" resultType="hashmap">
+		SELECT
+			*
+		FROM
+			(
+				SELECT
+					a.id productId,
+					b.ordertype,
+					c.source,
+					a.orderno,
+					b.userId,
+					IFNULL(d.telenumber, 0) userTel,
+					a.productname,
+					a.producttype,
+					IFNULL(a.buyprice * a.count, 0) totalprice,
+					a.count,
+					a.subType,
+					a.deliverstatus,
+					IFNULL(b.openId, 0) openId
+				FROM
+					orderitem a
+				LEFT JOIN `order` b ON a.orderno = b.orderno
+				LEFT JOIN paylog c ON a.orderNo = c.orderno
+				LEFT JOIN userinfo d ON b.userId = d.userId
+				WHERE
+					b.paystatus = 1
+				AND b.isDel = 0
+				AND (
+					a.producttype = 2
+					OR a.producttype = 16
+				)
+				AND a.productid = #{productid}
+				<if test="startTime!=null and startTime!='' ">
+					and date_format(b.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+				</if>
+				<if test="endTime!=null and endTime!='' ">
+					and date_format(b.addtime, '%Y-%m-%d') &lt;= #{endTime}
+				</if>
+			) alis
+		<where>
+		   <if test="bookAndElectronicType !=null and not bookAndElectronicType.isEmpty ">
+		   		and alis.ordertype in 
+			   <foreach collection="bookAndElectronicType" index="index" item="bookAndElectronic" open="(" separator="," close=")">
+			    	#{bookAndElectronic}
+			   </foreach>
+		   </if>
+		</where> 
+		limit #{start},#{pageSize}
+	</select>
+	
+	<!-- 商品列表-->
+	<select id="selectAboutProduct" parameterType="hashmap" resultType="hashmap">
+		SELECT
+		  a.id productId,
+			b.ordertype,
+		  c.source,
+		   a.orderno,
+		b.userId,
+		IFNULL(d.telenumber, 0) userTel,
+		d.telenumber userTel,
+		a.productname,
+		a.producttype,
+		IFNULL(a.buyprice*a.count, 0) totalprice,
+		a.count,
+		a.subType,
+		a.deliverstatus,
+		IFNULL(b.openId, 0) openId
+		FROM
+			orderitem a
+		LEFT JOIN `order` b ON a.orderno = b.orderno 
+		LEFT JOIN paylog c ON a.orderNo = c.orderno 
+		LEFT JOIN userinfo d on b.userId = d.userId
+		
+		<where>
+		   b.paystatus = 1 and b.isDel =0
+		   <if test="startTime!=null and startTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+		</if>
+		<if test="endTime!=null and endTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &lt;= #{endTime}
+		</if>
+		   <if test="orderTypeList !=null and  not orderTypeList.isEmpty ">
+		    and b.ordertype in
+		   <foreach collection="orderTypeList" item="orderType" separator="," open="(" close=")">
+		       #{orderType}
+		   </foreach>
+		</if>
+		<if test="questionAnswer !=null and  not questionAnswer.isEmpty ">
+		    and c.source in
+		   <foreach collection="questionAnswer" item="question" separator="," open="(" close=")">
+		       #{question}
+		   </foreach>
+		</if>
+		<if test="payMehod !=null and  not payMehod.isEmpty ">
+		    and c.payMethodName in
+		   <foreach collection="payMehod" item="pay" separator="," open="(" close=")">
+		       #{pay}
+		   </foreach>
+		</if> 
+		</where> 
+		order by b.addtime desc
+		limit #{start},#{pageSize}
+	</select>	
+	<!-- 统计商品数量 -->
+	<select id="selectAboutProductCount" parameterType="hashmap" resultType="long">
+		SELECT
+			count(a.orderno)
+		FROM
+			orderitem a
+		LEFT JOIN `order` b ON a.orderno = b.orderno 
+		LEFT JOIN paylog c ON a.orderNo = c.orderno 
+		LEFT JOIN userinfo d on b.userId = d.userId
+		<where>
+		   c. STATUS = 1 and b.isDel =0
+		   <if test="startTime!=null and startTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &gt;= #{startTime}  
+		</if>
+		<if test="endTime!=null and endTime!='' ">
+			and date_format(b.addtime, '%Y-%m-%d') &lt;= #{endTime}
+		</if>
+		<if test="orderTypeList !=null and  not orderTypeList.isEmpty ">
+		    and b.ordertype in
+		   <foreach collection="orderTypeList" item="orderType" separator="," open="(" close=")">
+		       #{orderType}
+		   </foreach>
+		</if>
+		<if test="questionAnswer !=null and  not questionAnswer.isEmpty ">
+		    and c.source in
+		   <foreach collection="questionAnswer" item="question" separator="," open="(" close=")">
+		       #{question}
+		   </foreach>
+		</if>
+		<if test="payMehod !=null and  not payMehod.isEmpty ">
+		    and c.payMethodName in
+		   <foreach collection="payMehod" item="pay" separator="," open="(" close=")">
+		       #{pay}
+		   </foreach>
+		</if> 
+		</where> 
+	</select>
+	<!-- 导出汇总 -->
+	<select id="selectExportTotal" parameterType="hashmap" resultType="hashmap">
+	   select * from 
+		((SELECT
+			IFNULL(sum(a.totalprice),0) totalprice,
+			IFNULL(sum(c.jianprice) ,0) couponPrice,
+		  IFNULL(sum(b.price),0)  actualPayPrice,
+		  1 as ordertype
+		FROM
+			`order` a
+		LEFT JOIN paylog b ON a.orderNo = b.orderno and b.source=1
+			<if test="(weChatPay!=null and weChatPay!='') or (alipay!=null and alipay!='') or (balance!=null and balance!='')">
+			   and (b.payMethodName = #{weChatPay} or b.payMethodName =  #{alipay}
+			         or b.payMethodName =  #{balance})
+			</if> 
+		LEFT JOIN coupon c ON a.couponId = c.id
+		where a.ordertype=2  and a.isDel=0 and b.status=1<include refid="orderWhere"></include>)
+		UNION all
+		(SELECT
+			IFNULL(sum(a.totalprice),0) totalprice,
+			IFNULL(sum(c.jianprice) ,0) couponPrice,
+		  IFNULL(sum(b.price),0) actualPayPrice,
+		  2 as ordertype
+		FROM
+			`order` a
+		LEFT JOIN paylog b ON a.orderNo = b.orderno and b.source=1
+		 <if test="(weChatPay!=null and weChatPay!='') or (alipay!=null and alipay!='') or (balance!=null and balance!='')">
+			   and (b.payMethodName = #{weChatPay} or b.payMethodName =  #{alipay}
+			         or b.payMethodName =  #{balance})
+			</if> 
+		LEFT JOIN coupon c ON a.couponId = c.id
+		where (a.ordertype=8 or a.ordertype=4) and a.isDel=0 and b.status=1<include refid="orderWhere"></include>)
+		UNION all
+		(select IFNULL(sum(price),0) totalprice,0 couponPrice,IFNULL(sum(price),0) actualPayPrice,3 as ordertype from paylog where status=1 and (source=3 or source=4)
+		 <if test="startTime!=null and endTime!='' ">
+			and date_format(payTime, '%Y-%m-%d') between #{startTime} and #{endTime}
+		</if>
+		<if test="(weChatPay!=null and weChatPay!='') or (alipay!=null and alipay!='') or (balance!=null and balance!='')">
+			   and (payMethodName = #{weChatPay} or payMethodName =  #{alipay}
+			         or payMethodName =  #{balance})
+			</if> )
+		UNION all
+		(select IFNULL(sum(price),0) totalprice,0 couponPrice, IFNULL(sum(price),0) actualPayPrice,4 as ordertype from paylog where status=1 and source=5
+		 <if test="startTime!=null and endTime!='' ">
+			and date_format(payTime, '%Y-%m-%d') between #{startTime} and #{endTime}
+		</if> 
+		<if test="(weChatPay!=null and weChatPay!='') or (alipay!=null and alipay!='') or (balance!=null and balance!='')">
+			   and (payMethodName = #{weChatPay} or payMethodName =  #{alipay}
+			         or payMethodName =  #{balance})
+		</if>))a
+		<where>
+		   <if test="ordertype !=null and ordertype!='' ">
+		       and ordertype in
+		       <foreach collection="ordertype" index="index" item="item" open="(" separator="," close=")">
+		    	#{item}
+		    </foreach>
+		   </if>
+		</where> 
+	</select>
+	
+	<select id="selectSearchOrderCount" parameterType="hashmap" resultType="long">
+		select sum(a.cou) from(
+		<!-- 问答或打赏列表 -->
+		SELECT
+			count(ot.id) cou, 1 as searchType
+		FROM
+			`order` a
+		LEFT JOIN paylog b ON a.orderNo = b.orderno
+		LEFT JOIN userinfo d on a.userId = d.userId
+		 JOIN orderItem ot ON a.id = ot.orderId
+		WHERE
+		a.isDel = 0
+		and a.totalprice!=0
+		AND a.paystatus = 1 <include refid="orderWhere"></include>
+		<if test="orderTypeList !=null and not orderTypeList.isEmpty ">
+		       and ot.produttype in
+		       <foreach collection="orderTypeList" index="index" item="orderType" open="(" separator="," close=")">
+		    	#{orderType}
+		    </foreach>
+		</if>
+		<if test="questionAnswer !=null and not questionAnswer.isEmpty">
+				   and b.source in
+				   <foreach collection="questionAnswer" index="index" item="question" open="(" separator="," close=")">
+					#{question}
+				</foreach>
+			</if>		
+		<if test="payMehod !=null and not payMehod.isEmpty">
+		       and b.payMethodName in
+		       <foreach collection="payMehod" index="index" item="pay" open="(" separator="," close=")">
+		    	#{pay}
+		    </foreach>
+		</if>
+		
+		union all
+		<!-- 课程类别或课程列表 -->
+		SELECT
+			count(a.id) cou, 2 as searchType
+		FROM
+			`order` a
+		LEFT JOIN userinfo d ON a.userId = d.userId
+		LEFT JOIN orderitem ot ON ot.orderId = a.id
+		LEFT JOIN ondemand od ON ot.ondemandId = od.ondemandId
+		WHERE
+			a.isDel = 0
+		AND	(ot.producttype = 4 or ot.producttype=8)
+		AND a.paystatus = 1
+		AND ot.subType != 5
+		AND od.isStatistical = 0
+		and a.totalprice!=0
+		<if test="courseState !=null and courseState !=''">AND od.type=#{courseState}</if>
+		<if test="ondemandId !=null and ondemandId !=''">AND ot.ondemandId = #{ondemandId}</if>
+		<include refid="orderWhere"></include>
+		union all
+		<!-- 期刊列表 -->
+		SELECT
+			count(alis.orderId) cou,3 as searchType
+		FROM
+			(
+				SELECT
+					a.id orderId,
+					a.ordertype,
+					a.orderno,
+					IFNULL(a.totalprice, 0) totalprice,
+					IFNULL(a.couponprice, 0) + IFNULL(a.voucherprice, 0) jianprice,
+					IFNULL(a.totalprice, 0) - (
+						IFNULL(a.couponprice, 0) + IFNULL(a.voucherprice, 0)
+					) actualPrice,
+					IFNULL(d.telenumber, a.openName) userTel,
+					IFNULL(a.openId, 0) openId,
+					a.paytype
+				FROM
+					`order` a
+				LEFT JOIN userinfo d ON a.userId = d.userId
+				LEFT JOIN orderitem ot ON ot.orderId = a.id
+				WHERE
+					a.isDel = 0
+				AND (
+					ot.producttype = 2
+					OR ot.producttype = 16
+				)
+				AND a.paystatus = 1
+				AND ot.subType != 5
+				and a.totalprice!=0
+				AND ot.productid = #{productid}  <include refid="orderWhere"></include>
+			) alis
+		<where>
+		   <if test="bookAndElectronicType !=null and not bookAndElectronicType.isEmpty ">
+		   		and alis.ordertype in 
+			   <foreach collection="bookAndElectronicType" index="index" item="bookAndElectronic" open="(" separator="," close=")">
+			    	#{bookAndElectronic}
+			   </foreach>
+		   </if>
+		</where> 
+		) a
+		<where>
+		   <if test="searchTypeList !=null and not searchTypeList.isEmpty ">
+		   		and searchType in 
+			   <foreach collection="searchTypeList" index="index" item="searchType" open="(" separator="," close=")">
+			    	#{searchType}
+			   </foreach>
+		   </if>
+		</where> 
+	</select>
+	
+	<select id="selectSearchOrder" parameterType="hashmap" resultType="hashmap">
+		<!-- 问答或打赏列表 -->
+		select * from (
+	  	SELECT
+	  		1 as searchType,
+			a.id orderId,
+			a.ordertype ordertype,
+			a.orderno,
+			ot.productName,
+			IFNULL(ot.buyprice,0) orderprice,
+			IFNULL(ot.buyprice*ot.count,0) totalprice,
+			IFNULL(a.couponprice,0)+IFNULL(a.voucherprice,0) jianprice,
+			IFNULL(ot.buyprice*ot.count,0)-(IFNULL(a.couponprice,0)+IFNULL(a.voucherprice,0)) actualPrice,
+			IFNULL(d.telenumber, a.openName) userTel,
+			IFNULL(a.openId,0) openId,
+			<!-- 为了和课程一致,所以加这个字段 -->
+			'' as ondemandType,
+			a.paytype,
+			ot.count productCount,
+			<!-- 为了和课程一致,所以加这个字段 -->
+			'' as name,
+			ifnull(a.receiverAddress,'') receiverAddress,
+			ifnull(a.receivername,'') receivername,ifnull(a.receiverphone,'')receiverphone,
+			ifnull(a.receiverCity,'') receiverCity,
+			ifnull(a.receiverCounty,'' ) receiverCounty,ifnull(a.receiverProvince,'') receiverProvince ,
+			date_format(a.addtime, '%Y-%m-%d %T') time
+		FROM
+			`order` a
+		LEFT JOIN userinfo d on a.userId = d.userId
+		 JOIN orderItem ot on a.id = ot.orderId
+		 left join paylog b on b.orderno = a.orderno
+		WHERE
+			a.isDel = 0
+		AND a.paystatus = 1 <include refid="orderWhere"></include>
+		and a.totalprice!=0
+		<if test="orderTypeList !=null and not orderTypeList.isEmpty ">
+		       (and ot.producttype in
+		       <foreach collection="orderTypeList" index="index" item="orderType" open="(" separator="," close=")">
+		    	#{orderType}
+		    	</foreach>
+		    	or ot.producttype=8)
+		</if>
+		<if test="questionAnswer !=null and not questionAnswer.isEmpty">
+				   and b.source in
+				   <foreach collection="questionAnswer" index="index" item="question" open="(" separator="," close=")">
+					#{question}
+				</foreach>
+		</if>		
+		<if test="payMehod !=null and not payMehod.isEmpty ">
+		       and b.payMethodName in
+		       <foreach collection="payMehod" index="index" item="pay" open="(" separator="," close=")">
+		    	#{pay}
+		    </foreach>
+		</if>
+		 union all
+		 <!-- 课程类别或课程列表 -->
+		 SELECT
+		 	2 as searchType,
+			a.id orderId,
+			<!-- 为了和问答列表字段一致,所以加这个字段 -->
+			ot.producttype as ordertype,
+			a.orderno,
+			ot.productname productName,
+			IFNULL(ot.buyprice, 0) orderprice,
+			IFNULL(ot.buyprice*ot.count, 0) totalprice,
+			IFNULL(a.couponprice, 0) + IFNULL(a.voucherprice, 0) jianprice,
+			IFNULL(ot.buyprice*ot.count, 0) - (
+				IFNULL(a.couponprice, 0) + IFNULL(a.voucherprice, 0)
+			) actualPrice,
+			IFNULL(d.telenumber, a.openName) userTel,
+			IFNULL(a.openId, 0) openId,
+			od.type ondemandType,
+			a.paytype,
+			ot.count productCount,
+			am.`name` name,
+			ifnull(a.receiverAddress,'') receiverAddress,
+			ifnull(a.receivername,'') receivername,ifnull(a.receiverphone,'')receiverphone,
+			ifnull(a.receiverCity,'') receiverCity,
+			ifnull(a.receiverCounty,'' ) receiverCounty,ifnull(a.receiverProvince,'') receiverProvince ,
+			date_format(a.addtime, '%Y-%m-%d %T') time
+		FROM
+			`order` a
+		LEFT JOIN userinfo d ON a.userId = d.userId
+		LEFT JOIN orderitem ot ON ot.orderId = a.id
+		LEFT JOIN ondemand od ON ot.ondemandId = od.ondemandId
+		LEFT JOIN assortment am on od.type=am.id
+		WHERE
+			a.isDel = 0
+		AND	(ot.producttype = 4 or ot.producttype=8)
+		AND a.paystatus = 1
+		AND ot.subType != 5
+		AND od.isStatistical = 0
+		and a.totalprice!=0
+		<if test="courseState !=null and courseState !=''">AND od.type=#{courseState}</if>
+		<if test="ondemandId !=null and ondemandId !=''">AND ot.ondemandId = #{ondemandId}</if>
+		<include refid="orderWhere"></include>
+		 union all
+		 <!-- 期刊列表 -->
+		SELECT
+			*
+		FROM
+			(
+				SELECT
+				    3 as searchType,
+					a.id orderId,					
+					ot.producttype ordertype,
+					a.orderno,
+					ot.productName,
+					IFNULL(ot.buyprice, 0) orderprice,
+					IFNULL(ot.buyprice*ot.count, 0) totalprice,
+					IFNULL(a.couponprice, 0) + IFNULL(a.voucherprice, 0) jianprice,
+					IFNULL(ot.buyprice*ot.count, 0) - (
+						IFNULL(a.couponprice, 0) + IFNULL(a.voucherprice, 0)
+					) actualPrice,
+					IFNULL(d.telenumber, a.openName) userTel,
+					IFNULL(a.openId, 0) openId,
+					<!-- 为了和课程一致,所以加这个字段 -->
+					'' as ondemandType,
+					a.paytype,
+					ot.count productCount, 
+					<!-- 为了和课程一致,所以加这个字段 -->
+					'' as name,
+					ifnull(a.receiverAddress,'') receiverAddress,
+			ifnull(a.receivername,'') receivername,ifnull(a.receiverphone,'')receiverphone,
+			ifnull(a.receiverCity,'') receiverCity,
+			ifnull(a.receiverCounty,'' ) receiverCounty,ifnull(a.receiverProvince,'') receiverProvince,
+					date_format(a.addtime, '%Y-%m-%d %T') time
+				FROM
+					`order` a
+				LEFT JOIN userinfo d ON a.userId = d.userId
+				LEFT JOIN orderitem ot ON ot.orderId = a.id
+				WHERE
+					a.isDel = 0
+				AND (
+					ot.producttype = 2
+					OR ot.producttype = 16
+				)
+				AND a.paystatus = 1
+				AND ot.subType != 5
+				and a.totalprice!=0
+				AND ot.productid = #{productid}  <include refid="orderWhere"></include>
+			) alis
+		<where>
+		   <if test="bookAndElectronicType !=null and not bookAndElectronicType.isEmpty ">
+		   		and alis.ordertype in 
+			   <foreach collection="bookAndElectronicType" index="index" item="bookAndElectronic" open="(" separator="," close=")">
+			    	#{bookAndElectronic}
+			   </foreach>
+		   </if>
+		</where> 
+		) a
+		<where>
+		   <if test="searchTypeList !=null and not searchTypeList.isEmpty ">
+		   		and searchType in 
+			   <foreach collection="searchTypeList" index="index" item="searchType" open="(" separator="," close=")">
+			    	#{searchType}
+			   </foreach>
+		   </if>
+		</where> 
+		order by a.time desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	
+		
+</mapper>

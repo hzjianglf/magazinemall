@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="contractDao">
+	<resultMap id="BaseResultMap" type="cn.admin.system.model.Contract">
+		<id column="id" jdbcType="INTEGER" property="id" />
+		<result column="title" jdbcType="VARCHAR" property="title" />
+		<result column="status" jdbcType="INTEGER" property="status" />
+		<result column="addTime" jdbcType="TIMESTAMP" property="addtime" />
+		<result column="inputerId" jdbcType="INTEGER" property="inputerid" />
+		<result column="updateTime" jdbcType="TIMESTAMP" property="updatetime" />
+		<result column="isDelete" jdbcType="INTEGER" property="isdelete" />
+		<result column="content" jdbcType="LONGVARCHAR" property="content" />
+	</resultMap>
+	<sql id="Base_Column_List">
+		id, title, status, addTime, inputerId, updateTime, isDelete, content
+	</sql>
+	<!-- 通过id查询单个合同 -->
+	<select id="selectContractById" parameterType="java.lang.Integer"
+		resultMap="BaseResultMap">
+		select
+		<include refid="Base_Column_List" />
+		from contract
+		where id = #{id,jdbcType=INTEGER}
+	</select>
+	<!-- 删除合同 -->
+	<delete id="deleteById" parameterType="java.lang.Integer">
+		delete from contract
+		where id = #{id,jdbcType=INTEGER}
+	</delete>
+	<!-- 添加合同 -->
+	<insert id="insert" parameterType="cn.admin.system.model.Contract">
+		insert into contract (id, title, status,
+		addTime, inputerId, updateTime,
+		isDelete, content)
+		values (#{id,jdbcType=INTEGER}, #{title,jdbcType=VARCHAR},
+		#{status,jdbcType=INTEGER},
+		now(), #{inputerid,jdbcType=INTEGER}, #{updatetime,jdbcType=TIMESTAMP},
+		0, #{content,jdbcType=LONGVARCHAR})
+	</insert>
+	<!-- 选择性修改合同,为null字段不修改 -->
+	<update id="updateContractSelective" parameterType="cn.admin.system.model.Contract">
+		update contract
+		<set>
+			<if test="title != null">
+				title = #{title,jdbcType=VARCHAR},
+			</if>
+			<if test="status != null">
+				status = #{status,jdbcType=INTEGER},
+			</if>
+			<if test="addtime != null">
+				addTime = #{addtime,jdbcType=TIMESTAMP},
+			</if>
+			<if test="inputerid != null">
+				inputerId = #{inputerid,jdbcType=INTEGER},
+			</if>
+			<if test="updatetime != null">
+				updateTime = now(),
+			</if>
+			<if test="isdelete != null">
+				isDelete = #{isdelete,jdbcType=INTEGER},
+			</if>
+			<if test="content != null">
+				content = #{content,jdbcType=LONGVARCHAR},
+			</if>
+		</set>
+		where id = #{id,jdbcType=INTEGER}
+	</update>
+	<!-- 修改合同所有字段 -->
+	<update id="updateContract" parameterType="cn.admin.system.model.Contract">
+		update contract
+		set title = #{title,jdbcType=VARCHAR},
+		status = #{status,jdbcType=INTEGER},
+		addTime = #{addtime,jdbcType=TIMESTAMP},
+		inputerId = #{inputerid,jdbcType=INTEGER},
+		updateTime = #{updatetime,jdbcType=TIMESTAMP},
+		isDelete = #{isdelete,jdbcType=INTEGER},
+		content = #{content,jdbcType=LONGVARCHAR}
+		where id = #{id,jdbcType=INTEGER}
+	</update>
+	<!-- 总记录数 -->
+	<select id="getCount" resultType="long" parameterType="map">
+		select count(id) from contract
+		where isDelete = 0
+		<if test="title != null">
+			and title like "%"#{title}"%" 
+		</if>
+		<if test="addBegin != null and addBegin != ''">
+			and addTime <![CDATA[>=]]> #{addBegin}
+		</if> 
+		<if test="addEnd != null and addEnd != ''">
+			and addTime <![CDATA[<=]]> #{addEnd}
+		</if> 
+	</select>
+	<!-- 列表分页数据 -->
+	<select id="getContractList" resultType="map" parameterType="map">
+		select c.id,c.title,DATE_FORMAT(c.addTime,'%Y-%m-%d %T') AS addTime,c.status,u.userName
+		from contract c left join userinfo u on c.inputerId = u.userId
+		where c.isDelete = 0
+		<if test="title != null">
+			and c.title like "%"#{title}"%" 
+		</if>
+		<if test="addBegin != null and addBegin != ''">
+			and c.addTime <![CDATA[>=]]> #{addBegin}
+		</if> 
+		<if test="addEnd != null and addEnd != ''">
+			and c.addTime <![CDATA[<=]]> #{addEnd}
+		</if> 
+		order by c.id desc limit #{start},#{pageSize}
+	</select>
+	<!-- 删除合同，修改合同的删除状态为1 -->
+	<update id="deleteContract" parameterType="int">
+		update contract set isDelete = 1 where id = #{id}
+	</update>
+	<!-- 修改合同的启用禁用状态 -->
+	<update id="modifyStatus" parameterType="map">
+		update contract set status = #{status} where id = #{id}
+	</update>
+	<!-- 查询所有协议 -->
+	<select id="findAll" resultType="map">
+		select * from contract where status = 1 and isDelete=0;
+	</select>
+</mapper>

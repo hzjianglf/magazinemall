@@ -1,0 +1,552 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="billDao">
+
+	<!-- 查询已经计算的月份 -->
+	<select id="selectMonthsByYear" resultType="string" parameterType="hashmap">
+		SELECT DISTINCT month FROM billreckon WHERE (`status`=1 OR (`status`=2 AND `status` NOT IN(2,4)))  AND `year`=#{year}
+	</select>
+	
+	<!-- 获取指定年、月有课程销售记录、问答记录、打赏记录的专家列表 -->
+	<select id="selectUsersForMonth" parameterType="hashmap" resultType="hashmap">
+		SELECT u.userId,ifnull(u.nickName,u.realName) realName,u.userCode,IFNULL(t.salesCount,0) AS salesCount
+		FROM userinfo u
+		LEFT JOIN (
+			SELECT u.userId,count(i.count) AS salesCount
+			FROM orderitem i
+			JOIN `order` o ON i.orderId=o.id
+			JOIN ondemand_teacher ot ON i.productid=ot.ondemandId
+			JOIN paylog p ON o.id=p.sourceId
+			JOIN userinfo u ON ot.teacherId=u.userId
+			WHERE o.orderstatus IN(2,3,4,5) AND p.status=1 AND p.source=1
+			AND  DATE_FORMAT(p.payTime,'%Y')=#{year}
+			AND  DATE_FORMAT(p.payTime,'%m')=#{month}
+			GROUP BY u.userId
+		)t ON u.userId=t.userId
+		WHERE u.userType=2 AND( 
+			EXISTS (
+				SELECT 1 FROM orderitem i
+				JOIN `order` o ON i.orderId=o.id
+				JOIN ondemand_teacher ot ON i.productid=ot.ondemandId
+				JOIN paylog p ON o.id=p.sourceId
+				WHERE o.orderstatus IN(2,3,4,5) AND ot.teacherId=u.userId AND p.`status`=1 AND p.source=1 
+				AND  DATE_FORMAT(p.payTime,'%Y')=#{year}
+				AND  DATE_FORMAT(p.payTime,'%m')=#{month}
+			)
+			OR EXISTS(
+				SELECT 1 FROM interlocution i
+				JOIN paylog p ON p.sourceId=i.id
+				WHERE i.status=1 AND i.lecturer=u.userId AND p.`status`=1 AND p.source=3
+				AND DATE_FORMAT(p.payTime,'%Y')=#{year}
+				AND DATE_FORMAT(p.payTime,'%m')=#{month}
+			)
+			OR EXISTS(
+				SELECT 1 FROM rewardlog r
+				JOIN paylog p ON p.sourceId=r.id
+				WHERE r.state=1 AND r.beRewarding=u.userId AND p.`status`=1 AND p.source=5
+				AND DATE_FORMAT(p.payTime,'%Y')=#{year}
+				AND DATE_FORMAT(p.payTime,'%m')=#{month}
+			)
+		)
+		ORDER BY u.userId
+		<if test="start !=null and pageSize!=null">
+			LIMIT #{start},#{pageSize}
+		</if>
+	</select>
+	
+	<!-- 获取指定年、月有课程销售记录、问答记录、打赏记录的专家总数量 -->
+	<select id="selectUsersCountForMonth" parameterType="hashmap" resultType="long">
+		SELECT count(0)
+		FROM userinfo u
+		LEFT JOIN (
+			SELECT u.userId,count(i.count) AS salesCount
+			FROM orderitem i
+			JOIN `order` o ON i.orderId=o.id
+			JOIN ondemand_teacher ot ON i.productid=ot.ondemandId
+			JOIN paylog p ON o.id=p.sourceId
+			JOIN userinfo u ON ot.teacherId=u.userId
+			WHERE o.orderstatus IN(2,3,4,5) AND p.status=1 AND p.source=1
+			AND  DATE_FORMAT(p.payTime,'%Y')=#{year}
+			AND  DATE_FORMAT(p.payTime,'%m')=#{month}
+			GROUP BY u.userId
+		)t ON u.userId=t.userId
+		WHERE u.userType=2 AND( 
+			EXISTS (
+				SELECT 1 FROM orderitem i
+				JOIN `order` o ON i.orderId=o.id
+				JOIN ondemand_teacher ot ON i.productid=ot.ondemandId
+				JOIN paylog p ON o.id=p.sourceId
+				WHERE o.orderstatus IN(2,3,4,5) AND ot.teacherId=u.userId AND p.`status`=1 AND p.source=1 
+				AND  DATE_FORMAT(p.payTime,'%Y')=#{year}
+				AND  DATE_FORMAT(p.payTime,'%m')=#{month}
+			)
+			OR EXISTS(
+				SELECT 1 FROM interlocution i
+				JOIN paylog p ON p.sourceId=i.id
+				WHERE i.status=1 AND i.lecturer=u.userId AND p.`status`=1 AND p.source=3
+				AND DATE_FORMAT(p.payTime,'%Y')=#{year}
+				AND DATE_FORMAT(p.payTime,'%m')=#{month}
+			)
+			OR EXISTS(
+				SELECT 1 FROM rewardlog r
+				JOIN paylog p ON p.sourceId=r.id
+				WHERE r.state=1 AND r.beRewarding=u.userId AND p.`status`=1 AND p.source=5
+				AND DATE_FORMAT(p.payTime,'%Y')=#{year}
+				AND DATE_FORMAT(p.payTime,'%m')=#{month}
+			)
+		)
+		ORDER BY u.userId
+	</select>
+	
+	<!-- 获取指定年、月、专家对应的有销售记录的课程列表 -->
+	<select id="selectSaledOndemandListForUser" parameterType="hashmap" resultType="hashmap">
+			SELECT o.ondemandId,o.name,o.presentPrice,o.status,o.rate
+			FROM ondemand o
+			WHERE EXISTS (
+				SELECT 1 FROM orderitem i
+				JOIN `order` o ON i.orderId=o.id
+				JOIN paylog p ON o.id=p.sourceId
+				JOIN ondemand_teacher ot ON i.productid=ot.ondemandId
+				WHERE o.orderstatus IN(2,3,4,5) AND o.ondemandId=i.productid AND p.status=1 AND p.source=1 
+				AND  DATE_FORMAT(p.payTime,'%Y')=#{year}
+				AND  DATE_FORMAT(p.payTime,'%m')=#{month}
+				AND ot.teacherId=#{userId}
+			)
+			ORDER BY o.ondemandId
+			<if test="start !=null and pageSize!=null">
+				LIMIT #{start},#{pageSize}
+			</if>
+	</select>
+
+	<!-- 获取指定年、月、专家对应的的课程销售记录-->
+	<select id="selectOrderItemsForUser" parameterType="hashMap" resultType="hashMap">
+		SELECT i.*,p.price AS payMoney
+		FROM orderitem i
+		JOIN `order` o ON i.orderId=o.id
+		JOIN paylog p ON o.id=p.sourceId
+		JOIN ondemand_teacher ot ON i.productid=ot.ondemandId
+		WHERE o.orderstatus IN(2,3,4,5) AND p.status=1 AND p.source=1 
+		AND  DATE_FORMAT(p.payTime,'%Y')=#{year}
+		AND  DATE_FORMAT(p.payTime,'%m')=#{month}
+		AND ot.teacherId=#{userId}
+	</select>
+	
+	<!-- 获取指定年、月、专家对应的的问答记录-->
+	<select id="selectQuestionsForUser" parameterType="hashMap" resultType="hashMap">
+		SELECT i.*,p.price AS payMoney
+		FROM interlocution i
+		JOIN paylog p ON p.sourceId=i.id
+		WHERE i.status=1 AND p.`status`=1 AND p.source=3
+		AND DATE_FORMAT(p.payTime,'%Y')=#{year}
+		AND DATE_FORMAT(p.payTime,'%m')=#{month} 
+		AND i.lecturer=#{userId}
+	</select>
+	
+	<!-- 获取指定年、月、专家对应的的打赏记录-->
+	<select id="selectRewardsForUser" parameterType="hashMap" resultType="hashMap">
+		SELECT r.*,p.price AS payMoney
+		FROM rewardlog r
+		JOIN paylog p ON p.sourceId=r.id
+		WHERE r.state=1 AND p.`status`=1 AND p.source=5
+		AND DATE_FORMAT(p.payTime,'%Y')=#{year}
+		AND DATE_FORMAT(p.payTime,'%m')=#{month} 
+		AND r.beRewarding=#{userId}
+	</select>
+	
+	<!-- ******************************************分成规则（bIllrule）********************************************* -->
+	
+	<!-- 获取指定年、月对应的分成规则数据 -->
+	<select id="selectBillRuleByYearAndMonth" parameterType="hashmap" resultType="hashmap">
+		SELECT * FROM billrule WHERE `year`=#{year} AND `month`=#{month} LIMIT 1
+	</select>
+	
+	<!-- 获取距离指定年、月最新的分成规则数据 -->
+	<select id="selectLastBillRuleByYearAndMonth" parameterType="hashmap" resultType="hashmap">
+		SELECT * 
+		FROM billrule
+		WHERE <![CDATA[CONCAT_WS('-',`year`,`month`)<=CONCAT_WS('-',#{year},#{month})]]> 
+		ORDER BY CONCAT_WS('-',`year`,`month`) DESC
+		LIMIT 1
+	</select>
+	
+	<!-- 新增规则数据 -->
+	<insert id="insertBillRule" parameterType="hashmap">
+		INSERT INTO billrule(`year`,`month`,rule,setting,addTime,userId) 
+		VALUES(#{year},#{month},#{rule},#{setting},now(),#{userId})
+	</insert>
+	 
+	<!-- 更新规则数据 -->
+	<update id="updateBillRule" parameterType="hashmap">
+		UPDATE billrule
+		<set>
+			<if test="rule!=null and rule!=''">rule=#{rule},</if>
+			<if test="setting!=null and setting!=''">setting=#{setting},</if>
+		</set>
+		WHERE id=#{id}
+	</update>
+	
+	<!-- ******************************************分账记录表（billreckon）********************************************* -->
+	
+	<sql id="billReckonFilter">
+		<!-- status: 1未提交 2审核中 3审核失败  4审核成功 -->
+		<choose>
+			<when test="status!=null">AND status=#{status}</when>
+			<otherwise>AND status=1</otherwise>
+		</choose>
+		<if test="startDate !=null and startDate!=''">
+		 	<![CDATA[ AND submitTime>=STR_TO_DATE(#{startDate},"%Y-%m-%d")]]>
+		</if>
+		<if test="endDate !=null and endDate !=''">
+			<![CDATA[ AND submitTime<=STR_TO_DATE(#{endDate},"%Y-%m-%d")]]>
+		</if>
+		<if test="xh !=null and xh !=''">
+			AND CONCAT(`year`,`month`) LIKE "%"#{xh}"%"
+		</if>
+		<if test="userName !=null and userName !=''">
+			AND userinfo.userName LIKE "%"#{userName}"%"
+		</if>
+	</sql>
+	
+	<!-- 获取分账记录列表 -->
+	<select id="selectBillReckonList" parameterType="hashMap" resultType="hashMap">
+		SELECT  id,CONCAT(`year`,`month`) AS xh, `name`,`year`,`month`,userCount,totalOndemandMoney,totalQuestionMoney,totalRewardMoney,
+		totalSalesTax,totalPersonalTax,totalShouldMoney,`status`,DATE_FORMAT(addTime,'%Y-%m-%d %T') AS addTime,userinfo.userName ,billreckon.trialStatus
+		FROM billreckon
+		LEFT JOIN userinfo ON billreckon.submitUserId=userinfo.userId
+		WHERE 1=1
+		<include refid="billReckonFilter"></include>
+		ORDER BY `year`,`month`
+		<if test="start !=null and pageSize!=null">
+			LIMIT #{start},#{pageSize}
+		</if>
+	</select>
+	
+	<!-- 获取分账记录数量 -->
+	<select id="selectBillReckonCount" parameterType="hashMap" resultType="long">
+		SELECT count(0)
+		FROM billreckon
+		LEFT JOIN userinfo ON billreckon.submitUserId=userinfo.userId
+		WHERE 1=1
+		<include refid="billReckonFilter"></include>
+	</select>
+	
+	<!-- 添加分账记录表 -->
+	<insert id="insertBillReckon" parameterType="hashmap">
+		<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="id">    
+          SELECT LAST_INSERT_ID() AS id 
+	    </selectKey>
+		INSERT INTO billreckon(`name`,`year`,month,userCount,totalOndemandMoney,totalQuestionMoney,totalRewardMoney,
+			totalSalesTax,totalPersonalTax,totalShouldMoney,`status`,trialStatus,addUserId,addTime)
+		VALUES(#{name},#{year},#{month},#{userCount},#{totalOndemandMoney},#{totalQuestionMoney},#{totalRewardMoney},
+			#{totalSalesTax},#{totalPersonalTax},#{totalShouldMoney},#{status},#{trialStatus},#{addUserId},#{addTime})
+	</insert>
+	
+	<!-- 更新分账记录表 -->
+	<update id="updateBillReckon" parameterType="hashMap">
+		UPDATE billReckon
+		<set>
+			<if test="userCount!=null and userCount!=''">userCount=#{userCount},</if>
+			<if test="totalOndemandMoney!=null">totalOndemandMoney=#{totalOndemandMoney},</if>
+			<if test="totalQuestionMoney!=null">totalQuestionMoney=#{totalQuestionMoney},</if>
+			<if test="totalRewardMoney!=null">totalRewardMoney=#{totalRewardMoney},</if>
+			<if test="totalSalesTax!=null">totalSalesTax=#{totalSalesTax},</if>
+			<if test="totalPersonalTax!=null">totalPersonalTax=#{totalPersonalTax},</if>
+			<if test="totalShouldMoney!=null">totalShouldMoney=#{totalShouldMoney},</if>
+			<if test="status!=null">status=#{status},</if>
+			<if test="trialStatus!=null">trialStatus=#{trialStatus},</if>
+			<if test="submitUserId !=null and submitUserId !=''">submitUserId=#{submitUserId},</if>
+			<if test="submitTime!=null and submitTime!=''">submitTime=#{submitTime}</if>
+		</set>
+		WHERE 1=1
+		<if test="id!=null">
+		 	AND id=#{id}
+		</if>
+		<if test="idList!=null and not idList.isEmpty()">
+		 	AND id IN
+		 	<foreach collection="idList" item="item" open="(" separator="," close=")">
+		 		#{item}
+		 	</foreach>
+		 </if>
+	</update>
+	
+	<!--删除分账记录及其所有相关数据 -->
+	<delete id="deleteBillReckon" parameterType="hashMap">
+		DELETE r,ri,bo,bq,br
+		FROM billreckon r
+		LEFT JOIN billreckonitem  ri ON r.id=ri.reckonId
+		LEFT JOIN bill_orderitem bo ON ri.id=bo.reckonItemId
+		LEFT JOIN bill_question bq ON ri.id=bq.reckonItemId
+		LEFT JOIN bill_reward br ON ri.id=br.reckonItemId
+		WHERE r.id=#{id}
+	</delete>
+	
+	<!-- ******************************************分账记录子项表（billreckonitem）********************************************* -->
+	
+	<!-- 获取分账记录对应的详细列表数据 -->
+	<select id="selectBillReckonItemListById" parameterType="hashMap" resultType="hashMap">
+		SELECT *
+		FROM billreckonitem
+		JOIN userinfo ON billreckonitem.userId=userinfo.userId 
+		WHERE reckonId=#{id}
+		<if test="userName!=null and userName!=''">
+			AND userinfo.realName LIKE "%"#{userName}"%"
+		</if>
+		ORDER BY billreckonitem.userId ASC
+		<if test="start !=null and pageSize!=null">
+			LIMIT #{start},#{pageSize}
+		</if>
+	</select>
+	
+	<!-- 获取分账记录对应的详细列表数量-->
+	<select id="selectBillReckonItemCountById" parameterType="hashMap" resultType="long">
+		SELECT count(0) 
+		FROM billreckonitem
+		JOIN userinfo ON billreckonitem.userId=userinfo.userId 
+		WHERE reckonId=#{id}
+		<if test="userName!=null and userName!=''">
+			AND userinfo.realName LIKE "%"#{userName}"%"
+		</if>
+	</select>
+	
+	<!-- 获取专家分账数据详情 -->
+	<select id="selectBillReckonItemDetailById" parameterType="int" resultType="hashMap">
+		SELECT * 
+		FROM billreckonitem
+		JOIN userinfo ON billreckonitem.userId=userinfo.userId
+		WHERE id=#{id}
+	</select>
+	
+	<!--批量添加记录子表数据-->
+	<insert id="insertBillReckonItem" parameterType="hashMap">
+		<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="id">    
+          SELECT LAST_INSERT_ID() AS id 
+	    </selectKey>
+		INSERT INTO billreckonitem(reckonId,userId,ondemandMoney,questionMoney,rewardMoney,salesTax,cutMoney,
+			personalTax,shouldMoney,actualMoney,addUserId,addTime,cutRemark)
+		VALUES(#{reckonId},#{userId},#{ondemandMoney},#{questionMoney},#{rewardMoney},#{salesTax},#{cutMoney},
+			 #{personalTax},#{shouldMoney},#{actualMoney},#{addUserId},#{addTime},#{cutRemark})
+	</insert>
+	
+	<!-- 更新子表数据 -->
+	<update id="updateBillReckonItem" parameterType="hashMap">
+		UPDATE billreckonitem
+		<set>
+			<if test="ondemandMoney !=null and ondemandMoney !=''">ondemandMoney=#{ondemandMoney},</if>
+			<if test="questionMoney !=null and questionMoney !=''">questionMoney=#{questionMoney},</if>
+			<if test="rewardMoney !=null and rewardMoney !=''">rewardMoney=#{rewardMoney},</if>
+			<if test="salesTax !=null and salesTax !=''">salesTax=#{salesTax},</if>
+			<if test="cutMoney !=null and cutMoney !=''">cutMoney=#{cutMoney},</if>
+			<if test="personalTax !=null and personalTax !=''">personalTax=#{personalTax},</if>
+			<if test="shouldMoney !=null and shouldMoney !=''">shouldMoney=#{shouldMoney},</if>
+			<if test="actualMoney !=null and actualMoney !=''">actualMoney=#{actualMoney},</if>
+			<if test="cutRemark !=null and cutRemark !=''">cutRemark=#{cutRemark}</if>
+		</set>
+		WHERE id=${id}
+		<if test="biID != null and biID != ''">
+			and reckonId = #{biID}
+		</if>
+	</update>
+	
+	<!-- ******************************************分账记录子表对应的分成详情（销课记录、问答记录、打赏记录）********************************************* -->
+	
+	<sql id="orderItemFilter">
+		<if test="status!=null">
+			AND bo.`status`=#{status}
+		</if>
+		<if test="startDate !=null and startDate!=''">
+		 	<![CDATA[ AND p.payTime>=STR_TO_DATE(#{startDate},"%Y-%m-%d")]]>
+		</if>
+		<if test="endDate !=null and endDate !=''">
+			<![CDATA[ AND p.payTime<=STR_TO_DATE(#{endDate},"%Y-%m-%d")]]>
+		</if>
+		<if test="key !=null and key !=''">
+			AND od.name LIKE "%"#{key}"%"
+		</if>
+		<if test="userName !=null and userName !=''">
+			AND IFNULL(u.nickName,u.realname) LIKE "%"#{userName}"%"
+		</if>
+	</sql>
+	
+	<!--获取分账记录子表对应的销课记录列表-->
+	<select id="selectOrderItemListForReckonItem" parameterType="hashMap" resultType="hashMap">
+		SELECT bo.id,oi.orderNo,p.tradeNo,IFNULL(u.nickName,u.realname) userName,od.name AS productName,
+		 oi.buyprice*oi.count AS totalPrice,p.price AS payPrice,p.payMethodName,bo.rate,bo.money,bo.salesTax,bo.`status`
+		FROM orderitem oi
+		JOIN `order` o ON oi.orderId=o.id
+		JOIN ondemand od ON od.ondemandId=oi.productid 
+		JOIN paylog p ON p.sourceId=oi.orderId AND p.payer=o.userId
+		JOIN bill_orderitem bo ON bo.orderItemId=oi.id
+		JOIN userinfo u ON o.userId=u.userId
+		WHERE p.source=1 AND bo.reckonItemId=#{id}
+		<include refid="orderItemFilter"></include>
+		ORDER BY o.addTime DESC
+		<if test="start !=null and pageSize!=null">
+			LIMIT #{start},#{pageSize}
+		</if>
+	</select>
+	
+	<!--获取分账记录子表对应的销课记录数量-->
+	<select id="selectOrderItemCountForReckonItem" parameterType="hashMap" resultType="long">
+		SELECT count(1)
+		FROM orderitem oi
+		JOIN `order` o ON oi.orderId=o.id
+		JOIN ondemand od ON od.ondemandId=oi.productid 
+		JOIN paylog p ON p.sourceId=oi.orderId AND p.payer=o.userId
+		JOIN bill_orderitem bo ON bo.orderItemId=oi.id
+		JOIN userinfo u ON o.userId=u.userId
+		WHERE p.source=1 AND bo.reckonItemId=#{id}
+		<include refid="orderItemFilter"></include>
+	</select>
+	
+	<sql id="questionFilter">
+		<if test="status!=null">
+			AND bq.`status`=#{status}
+		</if>
+		<if test="startDate !=null and startDate!=''">
+		 	<![CDATA[ AND p.payTime>=STR_TO_DATE(#{startDate},"%Y-%m-%d")]]>
+		</if>
+		<if test="endDate !=null and endDate !=''">
+			<![CDATA[ AND p.payTime<=STR_TO_DATE(#{endDate},"%Y-%m-%d")]]>
+		</if>
+		<if test="key !=null and key !=''">
+			AND i.content LIKE "%"#{key}"%"
+		</if>
+		<if test="userName !=null and userName !=''">
+			AND IFNULL(u.nickName,u.realname) LIKE "%"#{userName}"%"
+		</if>
+	</sql>
+	
+	<!--获取分账记录子表对应的问答记录列表-->
+	<select id="selectQuestionListForReckonItem" parameterType="hashMap" resultType="hashMap">
+		SELECT bq.id,IFNULL(u.nickName,u.realName) AS userName,i.id AS questionId,i.content,i.money AS totalPrice,
+		p.price AS payPrice,p.payMethodName,p.orderNo,p.tradeNo,bq.rate,bq.money,bq.salesTax,bq.`status`
+		FROM interlocution i
+		JOIN paylog p ON p.sourceId=i.id  AND p.payer=i.questioner
+		JOIN bill_question bq ON bq.questionId=i.id
+		JOIN userinfo u ON u.userId=i.questioner
+		WHERE p.source=3 AND bq.reckonItemId=#{id}
+		<include refid="questionFilter"></include>
+		ORDER BY i.inputDate DESC
+		<if test="start !=null and pageSize!=null">
+			LIMIT #{start},#{pageSize}
+		</if>
+	</select>
+	
+	<!--获取分账记录子表对应的问答记录数量-->
+	<select id="selectQuestionCountForReckonItem" parameterType="hashMap" resultType="long">
+		SELECT count(*)
+		FROM interlocution i
+		JOIN paylog p ON p.sourceId=i.id AND p.payer=i.questioner
+		JOIN bill_question bq ON bq.questionId=i.id
+		JOIN userinfo u ON u.userId=i.questioner
+		WHERE p.source=3 AND bq.reckonItemId=#{id}
+		<include refid="questionFilter"></include>
+	</select>
+	
+	<sql id="rewardFilter">
+		<if test="status!=null">
+			AND br.`status`=#{status}
+		</if>
+		<if test="startDate !=null and startDate!=''">
+		 	<![CDATA[ AND p.payTime>=STR_TO_DATE(#{startDate},"%Y-%m-%d")]]>
+		</if>
+		<if test="endDate !=null and endDate !=''">
+			<![CDATA[ AND p.payTime<=STR_TO_DATE(#{endDate},"%Y-%m-%d")]]>
+		</if>
+		<if test="key !=null and key !=''">
+			AND r.remark LIKE "%"#{key}"%"
+		</if>
+		<if test="userName !=null and userName !=''">
+			AND IFNULL(u.nickName,u.realname) LIKE "%"#{userName}"%"
+		</if>
+	</sql>
+	
+	<!--获取分账记录子表对应的打赏记录列表-->
+	<select id="selectRewardListForReckonItem" parameterType="hashMap" resultType="hashMap">
+		SELECT br.id,p.orderNo,IFNULL(u.nickName,u.realName) AS userName,r.id AS rewardId,r.remark,r.money AS totalPrice,
+		p.price AS payPrice,p.payMethodName,p.orderNo,p.tradeNo,br.money,br.rate,br.salesTax,br.`status`
+		FROM rewardlog r
+		JOIN paylog p ON p.sourceId=r.id AND p.payer=r.rewardPeople
+		JOIN bill_reward br ON br.rewardId=r.id
+		JOIN userinfo u ON u.userId=r.rewardPeople
+		WHERE p.source=5 AND br.reckonItemId=#{id}
+		<include refid="rewardFilter"></include>
+		ORDER BY r.inputDate DESC
+		<if test="start !=null and pageSize!=null">
+			LIMIT #{start},#{pageSize}
+		</if>
+	</select>
+	
+	<!--获取分账记录子表对应的打赏记录列表-->
+	<select id="selectRewardCountForReckonItem" parameterType="hashMap" resultType="long">
+		SELECT count(*)
+		FROM rewardlog r
+		JOIN paylog p ON p.sourceId=r.id AND p.payer=r.rewardPeople
+		JOIN bill_reward br ON br.rewardId=r.id
+		JOIN userinfo u ON u.userId=r.rewardPeople
+		WHERE p.source=5 AND br.reckonItemId=#{id}
+		<include refid="rewardFilter"></include>
+	</select>
+	
+	<!-- 批量添加订单分成记录表 -->
+	<insert id="batchInsertBillOrderItem" parameterType="hashMap">
+		INSERT INTO bill_orderitem (reckonItemId,orderItemId,rate,money,salesTax,status,addTime)
+		VALUES
+		<foreach collection="list" item="item" separator=",">
+			(#{item.reckonItemId},#{item.orderItemId},#{item.rate},#{item.money},#{item.salesTax},#{item.status},#{item.addTime})
+		</foreach>
+	</insert>
+	
+	<!-- 批量添加问答分成记录表 -->
+	<insert id="batchInsertBillQuestion" parameterType="hashMap">
+		INSERT INTO bill_question (reckonItemId,questionId,rate,money,salesTax,status,addTime)
+		VALUES
+		<foreach collection="list" item="item" separator=",">
+			(#{item.reckonItemId},#{item.questionId},#{item.rate},#{item.money},#{item.salesTax},#{item.status},#{item.addTime})
+		</foreach>
+	</insert>
+	
+	<!-- 批量添加打赏分成记录表 -->
+	<insert id="batchInsertBillReward" parameterType="hashMap">
+		INSERT INTO bill_reward (reckonItemId,rewardId,rate,money,salesTax,status,addTime)
+		VALUES
+		<foreach collection="list" item="item" separator=",">
+			(#{item.reckonItemId},#{item.rewardId},#{item.rate},#{item.money},#{item.salesTax},#{item.status},#{item.addTime})
+		</foreach>
+	</insert>
+	
+	<!-- 通过用户ID查询userinfo -->
+	<select id="selUserByID" parameterType="hashMap" resultType="hashMap">
+		select * from userinfo where userId = #{userId};
+	</select>
+	
+	<!-- 查询分成后指定专家的记录 -->
+	<select id="selBillreckonitemByID" parameterType="hashMap" resultType="hashMap">
+		SELECT bi.id biID, bi.`year` , bi.`month` , bt.* 
+		FROM `billreckon` bi , billreckonitem bt 
+		where bi.id = bt.reckonId
+		and bt.userId=#{userId}
+		<if test="biID != null and biID != ''">
+			and bt.reckonId = #{biID}
+		</if>
+		GROUP BY bi.`year` , bi.`month`;
+	</select>
+	
+	<!-- 查询计算公式year和month -->
+	<select id="selBillruleByYM" parameterType="hashMap" resultType="hashMap">
+		select rule from billrule where year = #{year} and month = #{month}
+	</select>
+	
+	<!-- 查询计算公式year和month -->
+	<select id="selBillreckonitemID" parameterType="hashMap" resultType="hashMap">
+		select id from billreckon where year = #{year} and month = #{month}
+		ORDER BY id DESC LIMIT 1
+	</select>
+	
+	<!-- 修改billreckon -->
+	<update id="updBillreckon" parameterType="hashMap">
+		update billreckon set status=#{status}
+		where id = #{id}
+	</update>
+	
+</mapper>

@@ -1,0 +1,772 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="productDao">
+	
+	
+	<!-- 查询课程 -->
+	<select id="selCurriculum" resultType="hashmap" parameterType="hashmap">
+		select o.ondemandId,o.`name`,o.title,o.serialState,o.introduce,o.IntendedFor,o.classtype,o.IsRecommend,o.isSum,
+		o.picUrl,o.originalPrice,o.presentPrice,o.IsGratis,o.studentNum,o.hits,u.realname,u.nickName,u.synopsis,u.userId userId,
+		(SELECT count(0) from classhour c where c.ondemandId=o.ondemandId) AS hourCount 
+		from ondemand o
+		left join ondemand_teacher ot on ot.ondemandId=o.ondemandId
+		left join userinfo u on u.userId=ot.teacherId
+		where o.status!=-1 and o.status!=0 and  case when (o.isSum=1 and o.endtime is not null) then now()<![CDATA[<]]>o.endtime else 1=1 end
+		<if test="classtype==0">
+			and o.classtype=#{classtype}
+		</if>
+		<if test="classtype!=null and classtype!=''">
+			and o.classtype=#{classtype}
+		</if>
+		<if test="type!=null and type!=''">
+			and o.type=#{type}
+		</if>
+		<if test="IsRecommend != null">
+			and o.IsRecommend=#{IsRecommend}
+		</if>
+		<if test="serialState !=null and serialState != '' and serialState != 0">
+			and  o.serialState=#{serialState}
+		</if>
+		<if test="searchName!=null and searchName!='' and searchName!='undefined'">
+			and o.`name` like CONCAT('%', #{searchName}, '%')
+		</if>
+		group by o.ondemandId
+		<choose>
+			<when test="serialState == 0">
+				order by o.studentNum desc
+			</when>
+			<otherwise>
+				order by o.sortNo desc,o.IsRecommend desc
+			</otherwise>
+		</choose>
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+		
+	</select>
+	<!-- 查询数量 -->
+	<select id="selCurriculumCount" resultType="long" parameterType="hashmap">
+		select count(0) from ondemand o
+		left join ondemand_teacher ot on ot.ondemandId=o.ondemandId
+		left join userinfo u on u.userId=ot.teacherId
+		where 1=1 and o.status!=-1 and o.status!=0
+		<if test="classtype==0">
+			and o.classtype=#{classtype}
+		</if>
+		<if test="classtype!=null and classtype!=''">
+			and o.classtype=#{classtype}
+		</if>
+		<if test="type!=null and type!=''">
+			and o.type=#{type}
+		</if>
+		<if test="searchName!=null and searchName!='' and searchName!='undefined'">
+			and o.`name` like CONCAT('%', #{searchName}, '%')
+		</if>
+		<if test="IsRecommend != null">
+			and o.IsRecommend=#{IsRecommend}
+		</if>
+		<if test="serialState !=null and serialState != '' and serialState != 0">
+			and  o.serialState=#{serialState}
+		</if>
+	</select>
+	<!-- 获取推荐课程 -->
+	<select id="selRecommendList" resultType="hashmap" parameterType="hashmap">
+		select o.ondemandId,o.`name`,o.title,o.serialState,o.introduce,o.IntendedFor,o.classtype,o.IsRecommend,
+		o.picUrl,o.originalPrice,o.presentPrice,o.IsGratis,o.studentNum,o.hits,u.realname,u.nickName,u.synopsis,u.userId,
+		(SELECT count(0) from classhour c where c.ondemandId=o.ondemandId) AS hourCount
+		 from ondemand o
+		left join ondemand_teacher ot on ot.ondemandId=o.ondemandId
+		left join userinfo u on u.userId=ot.teacherId
+		where  o.status!=-1 and o.status!=0 and classtype=0 and isSum=0
+		<if test="recommend==1">
+			and o.IsRecommend=1
+		</if>
+		<if test="teacherId != null and teacherId != ''">
+			and ot.teacherId=#{teacherId}
+		</if>
+		group by o.ondemandId
+		order by o.sortNo desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 推荐课程count -->
+	<select id="selRecommendCount" resultType="long" parameterType="hashmap">
+		select count(*) from ondemand o
+		left join ondemand_teacher ot on ot.ondemandId=o.ondemandId
+		left join userinfo u on u.userId=ot.teacherId
+		where o.status=1  and classtype=0 and isSum=0
+		<if test="recommend==1">
+			and o.IsRecommend=1
+		</if>
+		<if test="teacherId != null and teacherId != ''">
+			and ot.teacherId=#{teacherId}
+		</if>
+		order by o.studentNum desc
+	</select>
+	<!-- 获取精选杂志列表 -->
+	<select id="selectMagazineList" resultType="hashmap" parameterType="hashmap">
+		select b.isTop,b.id,b.`name`,b.paperPrice,b.ebookPrice,b.sales,b.picture,b.period,
+		b.pictureUrl,pe.`name` as pname,p.`year`,
+		0 AS isbuy,
+		(select count(0) from book bo join documentfinal d on bo.period=d.IssueOfPublication where bo.id=b.id) status
+		from book b 
+		LEFT JOIN publishingplan p on p.id=b.period
+		LEFT JOIN periodical pe on pe.id=p.periodicalId
+		WHERE b.state=0 AND b.stock <![CDATA[>0]]> AND b.type=1 AND pe.state=1 AND p.state=1
+		<if test="isTop==1">
+			AND b.isTop=1
+		</if>
+		<if test="searchName != null and searchName != ''">
+			and b.`name` like "%"#{searchName}"%"
+		</if>
+		<if test="orderType == 0">
+			order by b.publishTime desc,sortNo DESC
+		</if>
+		<if test="orderType == 1">
+			order by b.sales desc,b.sortNo DESC
+		</if>
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	
+	<select id="getMagazinesById" resultType="hashmap" parameterType="hashmap">
+		select b.isTop,b.id,b.`name`,b.paperPrice,b.ebookPrice,b.sales,b.picture,
+		b.pictureUrl,pe.`name` as pname,p.`year`,p.`describes` publishName,p.`id` publishId,
+		CASE WHEN b.ebookPrice>0 THEN 
+				CASE (select count(0) from orderitem ot 
+					LEFT JOIN `order` o on ot.orderId=o.id
+					LEFT join wechat_userinfo w on w.openId=o.openId
+					where FIND_IN_SET(b.period,ot.`desc`)>0
+					and (o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId})) 
+					 and ot.producttype=16) 
+				WHEN 0 THEN 0 ELSE 1 END
+		ELSE 1 END AS isbuy,
+		(select count(0) from book bo join documentfinal d on bo.period=d.IssueOfPublication where bo.id=b.id) status
+		from publishingplan p
+		LEFT JOIN book b on p.id=b.period and b.sumType=0 AND b.state=0 AND b.stock <![CDATA[>0]]> AND b.type=1
+		LEFT JOIN periodical pe on pe.id=p.periodicalId
+		WHERE pe.state=1 AND p.state=1
+		AND p.id in
+		<foreach collection="descList" index="index" item="desc" open="(" separator="," close=")">
+		    	#{desc}
+		 </foreach>
+	</select>
+	
+	
+	
+	<!-- 获取精选杂志数量 -->
+	<select id="selectMagazineCount" resultType="long" parameterType="hashmap">
+		select count(b.id) from book b 
+		LEFT JOIN publishingplan p on p.id=b.period
+		LEFT JOIN periodical pe on pe.id=p.periodicalId
+		WHERE  b.state=0 AND b.stock <![CDATA[>]]> 0 AND b.type=1
+		<if test="isTop==1">
+			AND b.isTop=1
+		</if>
+		AND pe.state=1 AND p.state=1
+		<if test="searchName!=null and searchName!=''">
+			and b.`name` like CONCAT('%', #{searchName}, '%')
+		</if>
+	</select>
+	<!-- 获取指定课程基础信息 -->
+	<select id="getOndemandContent" parameterType="hashmap" resultType="hashmap">
+		SELECT o.picUrl,o.name,o.IsGratis,o.hits,o.introduce,c.title,c.abstracts
+		,u.userUrl,c.hits as hourhits,c.hourId,c.`minute`,c.`second`,
+		(select count(0) from `comment` where contentId=c.hourId and `status`=1 )as commentCount
+		 FROM `ondemand` o
+		LEFT JOIN classhour c on o.ondemandId = c.ondemandId
+		LEFT JOIN ondemand_teacher ot on ot.ondemandId=o.ondemandId
+		LEFT JOIN userinfo u on ot.teacherId=u.userId
+		where o.ondemandId=#{ondemandId}
+		<if test="type==1">
+			order by c.orderIndex
+		</if>
+		<if test="type==2">
+			order by c.orderIndex desc
+		</if>
+	</select>
+	<select id="getIntroduceById" parameterType="int" resultType="hashmap">
+		select introduce from `ondemand` where ondemandId=#{ondemandId}
+	</select>
+	<!-- 获取课时的详细信息 -->
+	<select id="getHourContent" parameterType="int" resultType="hashmap">
+		SELECT  cl.videoUrl,cl.title,cl.abstracts,cl.content,cl.presentation,cl.hits,date_format(cl.addTime,'%Y-%m-%d %T') addTime,
+		cl.hourId,cl.ondemandId,ot.teacherId,we.questionPrice,o.picUrl,cl.vcloudChannel,o.imgUrls,
+		(SELECT count(0) from `comment` c WHERE c.commentType=2 and c.contentId=cl.hourId) as commentCount
+		FROM `classhour` cl
+		left join ondemand_teacher ot on ot.ondemandId=cl.ondemandId
+		left join writer_extendmsg we on we.userId=ot.teacherId
+		left join ondemand o on o.ondemandId=cl.ondemandId
+		where cl.hourId=#{hourId}
+	</select>
+	<!-- 更改课时播放次数 -->
+	<update id="updateHits" parameterType="Integer">
+		update classhour,ondemand set classhour.hits=classhour.hits+1,ondemand.hits=ondemand.hits+1 
+		where classhour.ondemandId=ondemand.ondemandId and classhour.hourId=#{hourId}
+	</update>
+	<!-- 获取指定课程的评论列表 -->
+	<!-- 查询父级评论列表 -->
+	<select id="selectParentComment" resultType="hashmap" parameterType="hashmap">
+		select c.id,c.content,u.userId,ifnull(u.realname,u.nickName) poster,u.userType,u.userUrl,c.isAnonymity,c.parentId,date_format(c.dateTime,'%Y-%m-%d %T') dateTime,
+		c.commentType,c.contentId 
+		from comment c
+		left join userinfo u on u.userId=c.poster
+		where c.commentType=#{commentType} and c.contentId=#{contentId} and c.status=1 and c.parentId=0
+		order by c.dateTime desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- 根据父id查询子评论列表 -->
+	<select id="selectCommentList" resultType="hashmap" parameterType="hashmap">
+		select c.id,c.content,u.userId,ifnull(u.realname,u.nickName) poster,u.userType,u.userUrl,c.isAnonymity,c.parentId,date_format(c.dateTime,'%Y-%m-%d %T') dateTime,
+		c.commentType,c.contentId 
+		from comment c
+		left join userinfo u on u.userId=c.poster
+		where c.parentId=#{id} and c.status=1
+		order by c.dateTime desc
+	</select>
+	<!-- 获取指定课程的评论列表count -->
+	<select id="selectCommentCount" resultType="long" parameterType="hashmap">
+		select count(c.id) from comment c
+		left join userinfo u on u.userId=c.poster
+		where c.commentType=#{commentType} and c.contentId=#{contentId} and c.status=1
+	</select>
+	<!-- 添加、回复评论 -->
+	<insert id="addComment" parameterType="hashmap">
+		insert into comment (poster,content,isAnonymity,contentId,commentType,parentId,dateTime,status) 
+		values(#{userId},#{content},#{isAnonymity},#{contentId},#{commentType},#{parentId},now(),0)
+	</insert>
+	<!-- 通过年份获取期刊 -->
+	<select id="getMoreMagazines" parameterType="hashmap" resultType="hashmap">
+		SELECT * FROM (
+			SELECT b.id,b.`name`,b.sales,b.paperPrice,b.picture,b.inputDate,b.`year`,b.sumType,b.period,b.isTop,b.ebookPrice,
+			0 AS isbuy,
+			(select count(0) from book bo join documentfinal d on bo.period=d.IssueOfPublication where bo.id=b.id) status,b.sortNo AS sortNo
+			FROM `book` b
+			left join publishingplan p on b.period=p.id	
+			LEFT JOIN periodical pe on pe.id=p.periodicalId
+			where b.state=0 AND b.sumType=0 and p.`year`= #{type} and p.state=1 AND pe.state=1
+		union all 
+			select b.id,b.`name`,b.sales,b.paperPrice,b.picture,b.inputDate,b.`year`,b.sumType,b.period,b.isTop,b.ebookPrice,
+			0,0,b.sortNo
+		  	from book b 
+		 	where b.sumType!=0 and b.`year`=#{type} and b.state=0 and isShowAsProduct=1 and (isSalePaper=1 or isSaleEbook=1)
+	 	)t
+		ORDER BY sumType DESC,isTop desc,sortNo DESC,inputDate desc
+		LIMIT #{start},#{pageSize}
+	</select>
+	<!-- 是否购买 -->
+	<select id="getIsBuy" resultType="int" parameterType="hashmap">
+		select count(0) from orderitem ot 
+				LEFT JOIN `order` o on ot.orderId=o.id
+				LEFT join wechat_userinfo w on w.openId=o.openId
+				where FIND_IN_SET(#{period},ot.`desc`)>0
+				and (o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId}))
+				and ot.producttype=16
+			
+	</select>
+	<!-- 获取推荐的最近的前三个期刊 -->
+	<select id="getLatestTopMagazines" parameterType="hashmap" resultType="hashmap">
+		SELECT * FROM (
+			SELECT b.id,b.`name`,b.sales,b.paperPrice,b.picture,b.inputDate,b.`year`,b.sumType,b.period,
+			CASE WHEN b.ebookPrice &gt; 0 THEN 
+					CASE (select count(0) from orderitem ot 
+						LEFT JOIN `order` o on ot.orderId=o.id
+						where FIND_IN_SET(b.period,ot.`desc`)>0 and o.userId =#{userId} and ot.producttype=16 and o.paystatus=1) 
+					WHEN 0 THEN 0 ELSE 1 END
+			ELSE 1 END AS isbuy,
+			(select count(0) from book bo join documentfinal d on bo.period=d.IssueOfPublication where bo.id=b.id) status,0 AS sortNo
+			FROM `book` b
+			left join publishingplan p on b.period=p.id	
+			LEFT JOIN periodical pe on pe.id=p.periodicalId
+			where b.state=0 AND b.sumType=0 and p.state=1 AND pe.state=1 and b.isTop=1
+		union all 
+			select b.id,b.`name`,b.sales,b.paperPrice,b.picture,b.inputDate,b.`year`,b.sumType,b.period,
+			0,0,b.sortNo
+		  	from book b 
+		 	where b.sumType!=0 and b.state=0 and isShowAsProduct=1 and (isSalePaper=1 or isSaleEbook=1) and b.isTop=1
+	 	)t
+		ORDER BY sumType DESC,sortNo DESC,inputDate desc
+		LIMIT #{start},#{pageSize}
+	</select>
+	<select id="getMoreMagazinesCount" resultType="long" parameterType="int">
+		<!-- select count(0) from book b
+		left join publishingplan p on b.period=p.id
+		LEFT JOIN periodical pe on pe.id=p.periodicalId	
+		where b.state=0 and p.`year` = #{type} AND pe.state=1 -->
+		SELECT count(0) FROM (
+			SELECT b.id,b.`name`,b.sales,b.paperPrice,b.picture,b.inputDate,b.`year`,b.sumType,b.period,b.isTop,b.ebookPrice,
+			0 AS isbuy,
+			(select count(0) from book bo join documentfinal d on bo.period=d.IssueOfPublication where bo.id=b.id) status,b.sortNo AS sortNo
+			FROM `book` b
+			left join publishingplan p on b.period=p.id	
+			LEFT JOIN periodical pe on pe.id=p.periodicalId
+			where b.state=0 AND b.sumType=0 and p.`year`= #{type} and p.state=1 AND pe.state=1
+		union all 
+			select b.id,b.`name`,b.sales,b.paperPrice,b.picture,b.inputDate,b.`year`,b.sumType,b.period,b.isTop,b.ebookPrice,
+			0,0,b.sortNo
+		  	from book b 
+		 	where b.sumType!=0 and b.`year`=#{type} and b.state=0 and isShowAsProduct=1 and (isSalePaper=1 or isSaleEbook=1)
+	 	)t
+		ORDER BY sumType DESC,isTop desc,sortNo DESC,inputDate desc
+	</select>
+	<!-- 获取期刊年份 -->
+	<select id="getYears" resultType="string">
+		select DISTINCT(`year`) from publishingplan ORDER BY  `year` DESC
+	</select>
+	
+	<!-- 获取指定期刊的详细信息 -->
+	<select id="getMagazinesContent" parameterType="int" resultType="hashmap">
+		SELECT b.id, b.`name`,b.picture,b.paperPrice,b.ebookPrice,b.describes,b.sales,pl.`name` perName,b.stock,b.period,b.`desc`,b.sumType
+		,IFNULL((SELECT id from favorites f where f.userId=#{userId} and f.dataType=1 and f.dataId =b.id limit 1),0) favorite,
+		CASE WHEN b.ebookPrice &gt; 0 THEN 
+				CASE (select count(0) from orderitem ot 
+					LEFT JOIN `order` o on ot.orderId=o.id
+					LEFT join wechat_userinfo w on w.openId=o.openId
+					where FIND_IN_SET(b.period,ot.`desc`)>0 
+					and (o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId})) 
+					and ot.producttype=16 and o.paystatus=1) 
+				WHEN 0 THEN 0 ELSE 1 END
+		ELSE 1 END AS isbuy,
+		(select count(0) from book b join documentfinal d on b.period=d.IssueOfPublication where b.id=#{id} and b.isSaleEbook=1 and d.`status`=1 ) status,
+		b.isSalePaper,b.isSaleEbook
+		FROM `book` b
+		LEFT JOIN publishingplan p on b.period=p.id
+		LEFT JOIN periodical pl on p.periodicalId=pl.id
+		where b.id=#{id}
+	</select>
+	<!-- 手机站获取推荐杂志 -->
+	<select id="selectZazhiList" resultType="hashmap">
+		select b.id,b.`name`,b.picture,b.period
+		from book b 
+		LEFT JOIN publishingplan p on p.id=b.period
+		LEFT JOIN periodical pe on pe.id=p.periodicalId
+		WHERE b.state=0 AND b.stock <![CDATA[>0]]> AND b.type=1 AND pe.state=1 AND p.state=1 AND b.isTop=1
+		order by b.isTop desc, b.inputDate desc
+	</select>
+	<!-- 手机站获取推荐课程 -->
+	<!-- <select id="selKechengList" resultType="hashmap">
+		select o.ondemandId,u.userId, o.name,u.userUrl,o.picUrl,u.userName,o.presentPrice,o.originalPrice,o.introduce from ondemand o
+		left join ondemand_teacher ot on ot.ondemandId=o.ondemandId
+		left join userinfo u on u.userId=ot.teacherId
+		where o.IsRecommend=1 and o.status=1 and classtype=0
+	</select> -->
+	<!-- 手机站获取推荐教师 -->
+	<select id="selTeacherList" resultType="hashmap">
+		select userId,userUrl,realname,nickName,synopsis,userType from userinfo 
+		where userType=2 and isFreeze=1 and isDelete=0 and IsRecommend=1 and approve=1
+		limit 3
+	</select>
+	<!-- 查询课程详情 -->
+	<select id="selCourseDetails" parameterType="hashmap" resultType="hashmap">
+		select o.ondemandId,o.name,o.studentNum,o.isSum,o.picUrl,ui.userName,ui.realname,ui.nickName,o.hits,o.originalPrice,o.presentPrice,ui.synopsis,o.introduce,ifnull(o.menu,'') menu,o.IntendedFor,o.title,oc.teacherId,
+		o.classtype,o.status,o.creationTime,o.serialState
+		from ondemand o
+		left JOIN ondemand_teacher oc on oc.ondemandId=o.ondemandId
+		left JOIN userinfo ui on ui.userId=oc.teacherId
+		where o.status!=0 and o.status!=-1 and o.ondemandId=#{classId}
+		group by o.ondemandId
+	</select>
+	<!-- 查询课时 -->
+	<select id="selClassHour" parameterType="hashmap" resultType="hashmap">
+		select title,date_format(addTime,'%Y-%m-%d %T') addTime,hits,minute,second,vcloudChannel,
+		date_format(starttime,'%Y-%m-%d %T') starttime,date_format(endtime,'%Y-%m-%d %T') endtime from classhour 
+		where ondemandId=#{classId}
+		ORDER BY addTime
+	</select> 
+	<!-- 获取首页获取的课程分类列表 -->
+	<select id="getClassTypeList" resultType="hashmap" parameterType="hashmap">
+		select id,name from assortment
+		where Isdisplay=1 and status=1 and type=1
+		order by orderIndex desc
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<!-- count -->
+	<select id="getClassTypeCount" resultType="long" parameterType="hashmap">
+		select count(0) from assortment
+		where Isdisplay=1 and status=1 and type=1
+	</select>
+	<!-- 获取课程对应的课时列表 -->
+	<select id="getClassHourList" resultType="hashmap" parameterType="hashmap">
+		SELECT c.hourId,c.type,c.title,abstracts,videoUrl,minute,second,IsAudition,c.ondemandId,o.serialState,
+		content,DATE_FORMAT(c.starttime,'%Y-%m-%d %T') starttime,DATE_FORMAT(c.endtime,'%Y-%m-%d %T') endtime,
+		c.presentation,c.hits,DATE_FORMAT(c.addTime,'%Y-%m-%d %T') addTime,c.vcloudChannel,
+		(SELECT count(0) from `comment` ct WHERE ct.commentType=2 and ct.contentId=c.hourId) as commentCount
+		from classhour c
+		LEFT JOIN ondemand o on c.ondemandId=o.ondemandId
+		WHERE c.ondemandId=#{ondemandId}
+		<if test="paixu == 'DESC' or paixu == null">
+			ORDER BY c.hourId DESC
+		</if>
+		<if test="paixu == 'ASC'">
+			ORDER BY c.hourId ASC
+		</if>
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	<select id="getClassHourCount" resultType="long" parameterType="hashmap">
+		SELECT count(0) from classhour
+		WHERE ondemandId=#{ondemandId}
+	</select>
+	<!-- 判断课程是否已经购买不是合集类型的 -->
+	<select id="selectIsByOndemand" resultType="int" parameterType="hashmap">
+		SELECT count(0) FROM
+			(
+				SELECT oi.id,p.ondemandId,o.userId,o.openId
+				FROM orderitem  oi
+				JOIN `order` o ON oi.orderId=o.id
+				JOIN ondemand p ON oi.productid=p.ondemandId
+				LEFT join wechat_userinfo w on w.openId=o.openId
+				WHERE p.isSum=0 AND o.paystatus=1
+				and (o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId}))
+				AND oi.producttype IN (4,8)
+				UNION ALL
+				SELECT oi.id,p.ondemandId,o.userId,o.openId
+				FROM orderitem  oi
+				JOIN ondemand om ON oi.productid=om.ondemandId
+				JOIN `order` o ON oi.orderId=o.id
+				JOIN sum_product s ON s.productid=oi.productid
+				JOIN ondemand p ON s.itemId=p.ondemandId
+				LEFT join wechat_userinfo w on w.openId=o.openId
+				WHERE om.isSum=1 AND o.paystatus=1
+				and (o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId}))
+				AND oi.producttype IN (4,8)
+			)t
+		WHERE t.ondemandId=#{ondemandId}
+	</select>
+	<!-- 判断课程是否已经购买合集类型的 -->
+	<select id="selIsBuySum" resultType="int" parameterType="hashmap">
+		SELECT count(0) from `order` o
+		LEFT JOIN orderitem ot on o.id=ot.orderId
+		LEFT join wechat_userinfo w on w.openId=o.openId
+		where ot.ondemandId=#{ondemandId}
+		and (o.userId=#{userId} or (o.openId=w.openId and w.userId=#{userId}))
+		and o.paystatus=1
+	</select>
+	<select id="selSubTypeByid" parameterType="hashmap" resultType="int">
+		select isSum from ondemand where ondemandId=#{productId}
+	</select>
+	<!-- 通过课程合集id查看合集列表 -->
+	<select id="getSumById" parameterType="hashmap" resultType="hashmap">
+		SELECT o.ondemandId,o.`name`,o.title,o.serialState,o.introduce,o.IntendedFor,o.classtype,o.IsRecommend,
+		o.picUrl,o.originalPrice,o.presentPrice,o.IsGratis,o.studentNum,o.hits,u.realname,u.nickName,u.synopsis,u.userId,
+		(SELECT count(0) from classhour c where c.ondemandId=o.ondemandId) AS hourCount,
+		(SELECT COUNT(0) FROM `order` od LEFT JOIN orderitem ot on ot.orderId=od.id
+		LEFT join wechat_userinfo w on w.openId=od.openId
+		where (od.ordertype=4 or od.ordertype=8) AND od.paystatus=1 AND ot.productid=o.ondemandId
+		and (od.userId=#{userId} or (od.openId=w.openId and w.userId=#{userId}))
+		) AS isbuy
+		from sum_product sp 
+		LEFT JOIN ondemand o on sp.itemId=o.ondemandId
+		LEFT JOIN ondemand_teacher ot on ot.ondemandId=o.ondemandId
+		LEFT JOIN userinfo u on ot.teacherId=u.userId
+		where sp.productid=#{ondemandId}
+		<if test="start!=null and pageSize!=null">
+			limit #{start},#{pageSize}
+		</if>
+	</select>
+	
+	 <select id="getSumByIdCount" parameterType="hashmap" resultType="long">
+	  select count(0) from
+		(SELECT o.ondemandId
+		from sum_product sp 
+		LEFT JOIN ondemand o on sp.itemId=o.ondemandId
+		LEFT JOIN ondemand_teacher ot on ot.ondemandId=o.ondemandId
+		LEFT JOIN userinfo u on ot.teacherId=u.userId
+		where sp.productid=#{ondemandId})a
+	</select> 
+	
+	<!-- 根据问题id查询被提问的专家或者课程的id -->
+	<!-- <select id="selQuestionInfo" parameterType="hashmap" resultType="Integer">
+		select 
+		<if test="type!=null and type!='' and type==1">
+			ondemandId beAskedId
+		</if>
+		<if test="type!=null and type!='' and type==2">
+			lecturer beAskedId
+		</if>
+		where id=#{questionId}
+	</select> -->
+	<!-- 查询提问支付信息 -->
+	<!-- <select id="selQuestionsPayInfo" parameterType="hashmap" resultType="hashmap">
+		select 
+		<if test="type!=null and type!='' and type==1">
+			name,0 price from ondemand where ondemandId=#{beAskedId} 
+		</if>
+		<if test="type!=null and type!='' and type==2">
+			ui.realname name,0 price,IFNULL(uc.balance,0) balance from userinfo ui
+			LEFT JOIN useraccount uc on uc.customerId=ui.userId
+			where ui.userId=#{beAskedId}
+		</if>
+	</select> -->
+	<!-- 查询支付方式 -->
+	<select id="selPayType" parameterType="hashmap" resultType="hashmap">
+		select id,methodName,picUrl,payType from paymethod where isfreeze=1
+	</select>
+	<!-- 修改paylog信息支付状态 -->
+	<update id="updPayLogStatus" parameterType="hashmap">
+		update paylog 
+		<set>
+			<if test="status!=null and status!=''">status=#{status},</if>
+			<if test="tradeNo!=null and tradeNo!=''">tradeNo=#{tradeNo},</if>
+			payTime=now()
+		</set>
+		where id=#{id}
+	</update>
+	<!-- 根据课时id，课程id获取课时文稿 -->
+	<select id="selClassPresentation" resultType="hashmap" parameterType="hashmap">
+		select hourId,title,abstracts,presentation from classhour where hourId=#{hourId} and ondemandId=#{ondemandId}
+	</select>
+	<!-- 查询用户的余额 -->
+	<select id="selUserBalance" parameterType="Integer" resultType="hashmap">
+		select IFNULL(uc.balance,0) balance,uc.customerId userId,p.source from useraccount uc
+		LEFT JOIN paylog p on p.payer=uc.customerId
+		where p.id=#{orderId}
+	</select>
+	<!-- 扣款 -->
+	<update id="updUserBalance" parameterType="hashmap">
+		update useraccount set balance=balance-#{price} where customerId=#{userId}
+	</update>
+	<!-- 添加用户消费记录 -->
+	<insert id="addUseraccountlog" parameterType="hashmap">
+		insert into useraccountlog (userId,type,money,time,num,month,balance,paystatus) values (#{userId},#{type},#{price},now(),#{orderNum},#{month},#{balance},1)
+	</insert>
+	<!-- 查询课程价格 -->
+	<select id="selectOndemandPrice" resultType="hashmap" parameterType="String">
+		select presentPrice,name,picUrl,isSum,originalPrice from ondemand where ondemandId=#{_parameter}
+	</select>
+	<!-- 查询用户是否存在 -->
+	<select id="selUserIsHave" parameterType="String" resultType="int">
+		select count(0) from userinfo where userId=#{userId} and isFreeze=1
+	</select>
+	<!-- 查询购物车项的期次ids -->
+	<select id="sqlQiciIds" parameterType="String" resultType="String">
+		select `desc` from shopcart where id=#{strId}
+	</select>
+	<!-- 查询book表中对应期次的上架数量 -->
+	<select id="selBookState" parameterType="String" resultType="hashmap">
+		select count(0) count,IFNULL(state,2) state from book where period=#{str}
+	</select>
+	<!-- 查询地址信息 -->
+	<select id="selAddressInfo" parameterType="String" resultType="hashmap">
+		select * from deliveraddress where Id=#{addressId}
+	</select>
+	<!-- 查询购物车信息 -->
+	<select id="selCartInfo" parameterType="String" resultType="hashmap">
+	select * from
+		(select * from shopcart where id=#{str}
+			UNION ALL
+		SELECT * FROM shopCart WHERE `desc`=#{str} AND subType=5) t
+	ORDER BY t.subType ,t.addTime
+	</select>
+	
+	<!-- 获取购物车数据 -->
+	<select id="selCartItemList" parameterType="String" resultType="hashMap">
+		SELECT * FROM(
+			SELECT * FROM shopcart where FIND_IN_SET(id,#{cartIds})>0
+			UNION ALL
+			SELECT * FROM shopCart WHERE FIND_IN_SET(`desc`,#{cartIds})>0 AND subType=5
+		) t
+	</select>
+	<!-- 获取购物车数据不包括赠品 -->
+	<select id="selCartItemListNotZeng" parameterType="String" resultType="hashMap">
+		SELECT s.*,sum(s.buyprice*count) subprice FROM shopcart s
+			left join book b on s.productid = b.id
+			left join publishingplan pl on b.period = pl.id
+			left join periodical p on pl.periodicalId = p.id
+		where FIND_IN_SET(s.id,#{cartIds})>0
+		GROUP BY p.id
+	</select>
+	<!-- 查询期刊id -->
+	<select id="selProductId" parameterType="String" resultType="String">
+		select periodicalId from publishingplan where id=#{qiciId}
+	</select>
+	<!-- 查询购物车总价 -->
+	<select id="selTotalPrice" parameterType="String" resultType="double">
+		select sum(buyprice*count) from shopcart where FIND_IN_SET(id,#{cartIds})>0
+	</select>
+	<!-- 购买时查询课程价格 -->
+	<select id="selTotalPriceOndemand" parameterType="hashmap" resultType="double">
+		select presentPrice  from ondemand where ondemandId=#{productId}
+	</select>
+	<!-- 添加订单order -->
+	<insert id="addOrderInfo" parameterType="hashmap" useGeneratedKeys="true" keyProperty="orderId">
+		insert into `order` (orderno,addtime,totalprice,postage,
+		<if test="paystatus!=null">
+			paystatus,
+		</if>
+		<if test="orderstatus!=null">
+			orderstatus,
+		</if>
+		<if test="receivername!=null and receiverCity!=null">
+			receivername,receiverphone,receiverProvince,receiverCity,receiverCounty,receiverAddress,
+		</if>
+		userId,ordertype,couponId,voucherId,voucherprice,couponprice)
+		values
+		(#{orderno},now(),#{totalPrice},#{postage},
+		<if test="paystatus!=null">
+			#{paystatus},
+		</if>
+		<if test="orderstatus!=null">
+			#{orderstatus},
+		</if>
+		<if test="receivername!=null and receiverCity!=null">
+			#{receivername},#{receiverphone},#{receiverProvince},#{receiverCity},#{receiverCounty},#{receiverAddress},
+		</if>	
+		#{userId},#{ordertype},#{couponId},#{voucherId},#{voucherprice},#{couponprice})
+	</insert>
+	<!-- 添加orederItem信息 -->
+	<insert id="addOrderItemInfo" parameterType="hashmap">
+		<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="orderitemId">    
+		          SELECT LAST_INSERT_ID() AS ID 
+		</selectKey>
+		insert into orderitem (orderno,orderId,productid,productname,productpic,`desc`,count,price,buyprice,producttype
+		<if test="receivername!=null and receiverCity!=null">
+		,receivername,receiverphone,receiverProvince,receiverCity,receiverCounty,receiverAddress
+		</if>
+		,subType,ondemandId)
+		values 
+		(#{orderno},#{orderId},#{productid},#{productname},#{productpic},#{desc},#{count},#{price},#{buyprice},#{producttype}
+		<if test="receivername!=null and receiverCity!=null">
+			,#{receivername},#{receiverphone},#{receiverProvince},#{receiverCity},#{receiverCounty},#{receiverAddress}
+		</if>
+		
+		,#{subType},#{productid})
+	</insert>
+	<!-- 通过栏目id查找板块 -->
+	<select id="selCategoryByColumnsId" parameterType="int" resultType="hashmap">
+		SELECT DISTINCT c.CategoryID,c.CategoryName,c.isShow,c.OrderNo FROM `category` c
+		join `columns` co on c.CategoryID=co.CategoryID
+		where co.ColumnID in
+		<foreach collection="columnsIds" item="item" open="(" separator="," close=")">
+				#{item}
+		</foreach>
+		order by c.OrderNo
+	</select>
+	<!-- 通过文章id查找栏目-->
+	<select id="selColumnsByDocIds" parameterType="hashmap" resultType="hashmap">
+		SELECT DISTINCT c.ColumnID,c.ColumnName,c.CategoryID,c.isShow FROM `columns` c
+		join documentfinal d on c.ColumnID=d.ColumnID
+		where d.DocID in
+		<foreach collection="docIds" item="item" open="(" separator="," close=")">
+				#{item}
+		</foreach>
+		order by d.OrderNo
+	</select>
+	<!-- 通过期次查找文章 -->
+	<select id="selDocumentsByPubId" parameterType="hashmap" resultType="hashmap">
+		SELECT DocID,Title,SubText,ColumnID,MainText,CatID as CategoryID,Author FROM `documentfinal` 
+		where IssueOfPublication =#{pubId}
+		order by OrderNo 
+	</select>
+	<!-- 查询期刊下的所有文章集合数据 -->
+	<select id="selDocumentDataByPubId" parameterType="int" resultType="hashmap">
+		SELECT RecPoint,DocID,Title,FinalPic,MainText
+		FROM `documentfinal` 
+		where IssueOfPublication =#{pubId}
+	</select>
+	<!-- 通过文章id查找直接关联的板块 -->
+	<select id="selCategoryByDocIds" parameterType="hashmap" resultType="hashmap">
+		SELECT DISTINCT c.CategoryID,c.CategoryName,c.isShow,c.OrderNo FROM `category` c
+		join documentfinal d on c.CategoryID=d.CatID
+		where  d.DocID in
+		<foreach collection="docIds" item="item" open="(" separator="," close=")">
+				#{item}
+		</foreach>
+		and (d.ColumnID is NULL or d.ColumnID=0)
+		order by d.OrderNo
+	</select>
+	
+	<!-- 通过文章id查找内容 -->
+	<select id="getEbookByDocId" parameterType="int" resultType="hashmap">
+		SELECT * from documentfinal d where d.DocID=#{DocID}
+	</select>
+	<!-- 通过id查询电子书 -->
+	<select id="selectEbookById" parameterType="string" resultType="hashmap">
+		select * from book where id = #{id}
+	</select>
+	<!-- 查询优惠券优惠价格 -->
+	<select id="selPriceByCid" parameterType="hashmap" resultType="double">
+		 select  jianprice from coupon c
+		 left join   coupon_user cu on c.Id = cu.couponId
+		 where cu.id =#{couponId} and cu.useState=0 and cu.userId=#{userId}
+	</select>
+	<!-- 查询代金券面额价格 -->
+	<select id="selPriceByVoucherId" parameterType="hashmap" resultType="double">
+		 select  price from voucher v
+		 left join   voucher_user cu on v.Id = cu.voucherId
+		 where cu.id =#{voucherId} and cu.useState=0 and cu.userId=#{userId}
+	</select>
+	<!-- 查询代金券类型-->
+	<select id="selPriceByVoucherIdQuan" parameterType="hashmap" resultType="int">
+		 select  count(0) from voucher v
+		 left join   voucher_user cu on v.Id = cu.voucherId
+		 where cu.id =#{voucherId} and cu.useState=0 and cu.userId=#{userId}
+		 and v.couponType=1 and (v.pinleiGoodsType=0 or v.pinleiGoodsType=2);
+	</select>
+	<!-- 根据parentId查询contentid	评论 -->
+	<select id="selContentId" resultType="hashmap" parameterType="hashmap">
+		select contentId from comment where id=#{parentId}
+	</select>
+	<!-- 通过book的id查询纸质合集 -->
+	<select id="selSumBookById" parameterType="int" resultType="hashmap">
+		SELECT b.`name`,b.picture, b.id,b.sumType,b.`desc`,b.paperPrice,b.ebookPrice,b.isSalePaper,b.isSaleEbook ebook
+		FROM book b
+		WHERE state=0 AND
+		EXISTS(
+			SELECT 1 FROM book ib WHERE ib.id=#{id} AND b.periodicalId=ib.periodicalId
+		)
+		AND sumType!=0 
+		AND (isSaleEbook &gt; 0 OR isSalePaper &gt; 0)
+	</select>
+	<!-- 查询用户是否是免购用户 -->
+	<select id="selUserIsmiangou" parameterType="int" resultType="int">
+		select noPurchaseUser from userinfo where userId=#{userId}
+	</select>
+	<!-- 查询book表记录 -->
+	<select id="getBookRecord" parameterType="String" resultType="hashmap">
+		select * from book where id = #{id}
+	</select>
+	<select id="getOndemandRecord" parameterType="String" resultType="hashmap">
+		select * from ondemand where ondemandId = #{productid}
+	</select>
+	<!-- 通过期刊合集id查看合集下的商品列表 -->
+	<select id="getProudctListByCollection" parameterType="String" resultType="hashmap">
+		SELECT
+			bo.*,pu.`year` publishYear,pu.describes publishName
+		FROM
+			 publishingplan pu
+		LEFT JOIN book bo  ON bo.period = pu.id and bo.sumType=0
+		<where>
+			<if test="descList !=null and not descList.isEmpty">
+		       and pu.id in
+		       <foreach collection="descList" index="index" item="desc" open="(" separator="," close=")">
+		    	#{desc}
+		       </foreach>
+		    </if>
+		</where>
+		ORDER BY bo.inputDate desc	
+	</select>
+	<!-- 获取rc_pics表pid不为null的数据列表 -->
+	<select id="getRcPicList" resultType="hashmap">
+		select * from rc_pics where pid is not null
+	</select>
+	<insert id="addPictureUrlData" parameterType="hashmap">
+	    INSERT INTO `classhour_picture`(`hourId`, `picurl`)
+	    VALUES
+	    <foreach collection="classHourList" item="item" separator=",">
+	        (#{item.hourId}, #{item.picurl})
+	    </foreach>
+	</insert>
+	<!-- 获取rc_pics表pid不为null的数据列表 -->
+	<select id="getClassHourPicurl" resultType="hashmap" parameterType="int">
+		select * from `classhour_picture` where hourId=#{hourId}
+	</select>
+	
+</mapper>
